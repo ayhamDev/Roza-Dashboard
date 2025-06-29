@@ -1,7 +1,6 @@
 "use client";
 
 import type React from "react";
-
 import type { Column } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ChevronsUpDown, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,15 +17,23 @@ interface DataTableColumnHeaderProps<TData, TValue>
   extends React.HTMLAttributes<HTMLDivElement> {
   column: Column<TData, TValue>;
   title: string;
+  icon?: React.ElementType; // 1. Add optional icon prop
 }
 
 export function DataTableColumnHeader<TData, TValue>({
   column,
   title,
   className,
+  icon: Icon, // 2. Destructure and alias the icon prop
 }: DataTableColumnHeaderProps<TData, TValue>) {
   if (!column.getCanSort()) {
-    return <div className={cn(className)}>{title}</div>;
+    return (
+      <div className={cn("flex items-center", className)}>
+        {/* 4. Render icon for non-sortable columns as well */}
+        {Icon && <Icon className="mr-2 h-4 w-4 text-muted-foreground" />}
+        {title}
+      </div>
+    );
   }
 
   return (
@@ -38,6 +45,8 @@ export function DataTableColumnHeader<TData, TValue>({
             size="sm"
             className="-ml-3 h-8 data-[state=open]:bg-accent"
           >
+            {/* 3. Render the icon if it exists */}
+            {Icon && <Icon className="mr-2 h-4 w-4" />}
             <span>{title}</span>
             {column.getIsSorted() === "desc" ? (
               <ArrowDown className="ml-2 h-4 w-4" />

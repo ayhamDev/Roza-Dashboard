@@ -12,7 +12,7 @@ function RouteComponent() {
     setBreadcrumbs([
       {
         id: "dashboard",
-        label: "Home",
+        label: "Dashboard",
         href: "/dashboard",
         isActive: true,
       },

@@ -68,7 +68,7 @@ export function DataTable<TData>({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 overflow-auto md:max-h-[550px] max-h-max w-full custom-scrollbar rounded-md">
+      <div className="grid grid-cols-1 overflow-auto max-h-max w-full custom-scrollbar rounded-md">
         <Table className="w-full">
           <TableHeader className="dark:bg-accent/45 bg-accent/20 backdrop-blur-lg sticky top-0 z-10">
             {table.getHeaderGroups().map((headerGroup) => (

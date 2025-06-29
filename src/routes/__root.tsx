@@ -2,6 +2,9 @@ import { Outlet, createRootRoute } from "@tanstack/react-router";
 import AppRouteError from "@/components/app/AppRouteError";
 import AppNotFound from "@/components/app/AppNotFound";
 import { NuqsAdapter } from "nuqs/adapters/react";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+const queryClient = new QueryClient();
 
 export const Route = createRootRoute({
   component: RootComponent,
@@ -14,7 +17,10 @@ export const Route = createRootRoute({
 function RootComponent() {
   return (
     <NuqsAdapter>
-      <Outlet />
+      <QueryClientProvider client={queryClient}>
+        <Outlet />
+        <ReactQueryDevtools initialIsOpen={false} />
+      </QueryClientProvider>
     </NuqsAdapter>
   );
 }
