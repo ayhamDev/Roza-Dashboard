@@ -9,6 +9,13 @@ export type SearchParams = ISortProps &
   ISearchProps &
   IFilterProps;
 
+/**
+ * Builds a URLSearchParams object based on the given SearchParams.
+ *
+ * @param {SearchParams} props
+ * @returns {URLSearchParams}
+ */
+
 export const buildSearchParams = (props: SearchParams): URLSearchParams => {
   const params = new URLSearchParams();
 

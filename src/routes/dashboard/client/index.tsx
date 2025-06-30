@@ -1,31 +1,24 @@
+import AppCopyButton from "@/components/app/AppCopyButton";
 import { DataTable } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { useBreadcrumbs } from "@/context/breadcrumpst";
 import { useTable } from "@/hooks/use-table";
 import type { Database } from "@/interface/database.types";
-import { copyToClipboard } from "@/lib/copyToClipboard";
+import type { IPaginationResponse } from "@/interface/PaginationProps.interface";
+import {
+  buildPaginationResponse,
+  parsePageParam,
+  toRange,
+} from "@/lib/pagination";
 import { supabase } from "@/supabase";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { format, formatDate, formatDistanceToNow, parseISO } from "date-fns";
-import { Calendar, Copy, Mail, MessageCircle, Phone } from "lucide-react";
-import { useLayoutEffect } from "react";
-export interface IPaginationResponse<T> {
-  docs: T[];
-  limit: number;
-  total: number;
-  totalPages: number;
-  page: number;
-}
+import { format, formatDistanceToNow, parseISO } from "date-fns";
+import { Calendar, Hash, Mail, MessageCircle, Phone, User } from "lucide-react";
+import { useLayoutEffect, useMemo } from "react";
 
 export const Route = createFileRoute("/dashboard/client/")({
   component: RouteComponent,
@@ -54,34 +47,32 @@ function RouteComponent() {
     columns: [
       {
         accessorKey: "client_id",
-        header: "ID",
+        header: ({ column }) => (
+          <DataTableColumnHeader icon={Hash} column={column} title="ID" />
+        ),
         cell: ({ row }) => {
-          const id = row.getValue("client_id") as string;
-
+          const id = row.getValue("client_id") as number;
           return (
-            <div className="flex items-center gap-3">
-              <div className="flex flex-col">
-                <Badge
-                  variant={"secondary"}
-                  className="font-medium text-sm select-none"
-                >
-                  # <span className="select-all">{id}</span>
-                </Badge>
-              </div>
-            </div>
+            <Badge variant="secondary" className="font-medium text-sm">
+              <Hash className="h-3 w-3" />
+              <span className="select-all">{id}</span>
+            </Badge>
           );
         },
       },
       {
         accessorKey: "name",
-        header: "Name",
+        header: ({ column }) => (
+          <DataTableColumnHeader icon={User} column={column} title="Name" />
+        ),
         cell: ({ row }) => {
           const name = row.getValue("name") as string;
 
           return (
-            <div className="flex items-center gap-3">
-              <div className="flex flex-col">
-                <span className="font-medium text-sm select-all">{name}</span>
+            <div className="flex items-center justify-between group relative w-full">
+              <span className="font-medium text-sm select-none">{name}</span>
+              <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                <AppCopyButton text={name} />
               </div>
             </div>
           );
@@ -96,7 +87,7 @@ function RouteComponent() {
           const email = row.getValue("email") as string;
 
           return (
-            <div className="flex items-center gap-2 pr-8">
+            <div className="flex items-center gap-2 pr-8 group">
               <Button
                 variant="link"
                 size="sm"
@@ -105,16 +96,9 @@ function RouteComponent() {
               >
                 {email}
               </Button>
-
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-6 w-6 ml-auto"
-                title="Copy"
-                onClick={() => copyToClipboard(email, "Email")}
-              >
-                <Copy />
-              </Button>
+              <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                <AppCopyButton text={email} />
+              </div>
             </div>
           );
         },
@@ -135,7 +119,7 @@ function RouteComponent() {
             );
 
           return (
-            <div className="flex items-center gap-2 pr-8">
+            <div className="flex items-center gap-2 pr-8 group">
               <Button
                 variant="link"
                 size="sm"
@@ -144,15 +128,9 @@ function RouteComponent() {
               >
                 {phone}
               </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-6 w-6 ml-auto"
-                title="Copy"
-                onClick={() => copyToClipboard(phone, "Phone")}
-              >
-                <Copy />
-              </Button>
+              <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                <AppCopyButton text={phone} />
+              </div>
             </div>
           );
         },
@@ -176,7 +154,7 @@ function RouteComponent() {
               </p>
             );
           return (
-            <div className="flex items-center gap-2 pr-8">
+            <div className="flex items-center gap-2 pr-8 group">
               <Button
                 variant="link"
                 size="sm"
@@ -190,15 +168,9 @@ function RouteComponent() {
               >
                 {whatsappPhone}
               </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-6 w-6 ml-auto"
-                title="Copy"
-                onClick={() => copyToClipboard(whatsappPhone, "WhatsApp")}
-              >
-                <Copy />
-              </Button>
+              <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                <AppCopyButton text={whatsappPhone} />
+              </div>
             </div>
           );
         },
@@ -219,7 +191,7 @@ function RouteComponent() {
 
           return (
             <div className="flex items-center gap-2">
-              {format(date, "yyyy-MM-dd HH:mm a").toLowerCase()}{" "}
+              {format(date, "yyyy-MM-dd hh:mm a")?.toLowerCase()}
               <span className="text-muted-foreground">
                 ({formatDistanceToNow(date)} ago)
               </span>
@@ -242,7 +214,7 @@ function RouteComponent() {
 
           return (
             <div className="flex items-center gap-2">
-              {format(date, "yyyy-MM-dd HH:mm a").toLowerCase()}{" "}
+              {format(date, "yyyy-MM-dd hh:mm a")?.toLowerCase()}
               <span className="text-muted-foreground">
                 ({formatDistanceToNow(date)} ago)
               </span>
@@ -254,33 +226,46 @@ function RouteComponent() {
     baseQueryKey: ["client"],
   });
 
-  const page = Number(searchParams.page) || 1;
-  const limit = 10;
-  const from = (page - 1) * limit;
-  const to = from + limit - 1;
+  // const page = Number(searchParams.page) + 1;
+  // const limit = 10;
+  // const from = (page - 1) * limit;
+  // const to = from + limit - 1;
+
+  const page = useMemo(
+    () => parsePageParam(searchParams.page),
+    [searchParams.page]
+  );
+  const { from, to } = useMemo(
+    () => toRange(page, searchParams.limit),
+    [page, searchParams.limit]
+  );
 
   const { data, isLoading, isError } = useQuery<
     IPaginationResponse<Database["public"]["Tables"]["client"]["Row"]>
   >({
     queryKey,
     queryFn: async () => {
-      const { data, count, error } = await supabase
+      const QueryBuilder = supabase
         .from("client")
         .select("*", { count: "exact" })
         .range(from, to);
+      if (searchParams.search) {
+        QueryBuilder.or(
+          `name.ilike.%${searchParams.search}%,email.ilike.%${searchParams.search}%,phone.ilike.%${searchParams.search}%,whatsapp_phone.ilike.%${searchParams.search}%`
+        );
+      }
+      if (searchParams.sort) {
+        QueryBuilder.order(searchParams.sort.by as any, {
+          ascending: searchParams.sort.order === "asc",
+        });
+      }
+      const { data, count, error } = await QueryBuilder;
 
       if (error) throw error;
 
-      return {
-        docs: data ?? [],
-        limit,
-        total: count ?? 0,
-        totalPages: count ? Math.ceil(count / limit) : 1,
-        page,
-      };
+      return buildPaginationResponse(data, searchParams, count);
     },
   });
-
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between sticky top-[52px] py-3 bg-background/20 backdrop-blur-xl z-[100] md:px-8 px-4">

@@ -1,41 +1,53 @@
 "use client";
 
-import * as React from "react";
 import {
+  BookOpen,
   LayoutDashboard,
-  Users,
   Package,
   ShoppingCart,
   Tags,
-  BookOpen,
+  Users,
 } from "lucide-react";
+import * as React from "react";
 
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
-import { AppUser } from "./AppUser";
+import { supabase } from "@/supabase";
+import { useQuery } from "@tanstack/react-query";
 import { AppSidebarNav } from "./AppSidebarNav";
+import { AppUser } from "./AppUser";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { data: OrdersCount } = useQuery<number | null>({
+    queryKey: ["order", "status:pending"],
+    refetchInterval: 10 * 1000,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("order")
+        .select("", { count: "exact", head: true }) // Don't fetch any data
+        .eq("status", "Pending");
+
+      if (error) throw error;
+
+      return count; // No data, just count
+    },
+  });
+
+  const { state } = useSidebar();
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              className="data-[slot=sidebar-menu-button]:!p-1.5"
-            >
-              {/* Add your logo or button content here */}
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        {state == "expanded" && (
+          <h1 className="scroll-m-20 text-center text-xl py-4 font-extrabold tracking-tight text-balance">
+            Roza Dashboard
+          </h1>
+        )}
+        {/* Add your logo or button content here */}
       </SidebarHeader>
       <SidebarContent>
         <AppSidebarNav
@@ -60,6 +72,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               title: "Orders",
               url: "/dashboard/order",
               icon: ShoppingCart, // 🛒 Represents orders
+              badge: OrdersCount,
             },
           ]}
         />

@@ -16,17 +16,10 @@ import { supabase } from "@/supabase";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
-import {
-  Book,
-  BookOpen,
-  Calendar,
-  Hash,
-  ImageIcon,
-  Package,
-} from "lucide-react";
+import { Calendar, Hash, Tag } from "lucide-react";
 import { useLayoutEffect, useMemo } from "react";
 
-export const Route = createFileRoute("/dashboard/catalog/")({
+export const Route = createFileRoute("/dashboard/category/")({
   component: RouteComponent,
 });
 
@@ -42,8 +35,8 @@ function RouteComponent() {
       },
       {
         id: "client",
-        label: "Catalogs",
-        href: "/dashboard/catalog",
+        label: "Categories",
+        href: "/dashboard/category",
         isActive: true,
       },
     ]);
@@ -52,12 +45,12 @@ function RouteComponent() {
   const { table, searchParams, queryKey } = useTable({
     columns: [
       {
-        accessorKey: "catalog_id",
+        accessorKey: "category_id",
         header: ({ column }) => (
           <DataTableColumnHeader icon={Hash} column={column} title="ID" />
         ),
         cell: ({ row }) => {
-          const id = row.getValue("catalog_id") as number;
+          const id = row.getValue("category_id") as number;
           return (
             <Badge variant="secondary" className="font-medium text-sm">
               <Hash className="h-3 w-3" />
@@ -66,40 +59,23 @@ function RouteComponent() {
           );
         },
       },
-
       {
         accessorKey: "name",
         header: ({ column }) => (
           <DataTableColumnHeader
-            icon={BookOpen}
+            icon={Tag}
             column={column}
-            title="Catalog Name"
+            title="Category Name"
           />
         ),
         cell: ({ row }) => {
           const name = row.getValue("name") as string;
-          const description = (row.original as any)?.description as
-            | string
-            | null;
 
           return (
-            <div className="flex flex-row items-center gap-4 min-w-[200px]">
-              <div className="flex flex-col gap-1">
-                <span
-                  className="font-medium text-sm truncate max-w-[200px]"
-                  title={name}
-                >
-                  {name}
-                </span>
-                {description && (
-                  <span
-                    className="text-xs text-muted-foreground truncate max-w-[250px]"
-                    title={description}
-                  >
-                    {description}
-                  </span>
-                )}
-              </div>
+            <div className="flex items-center gap-2">
+              <span className="truncate max-w-[200px]" title={name}>
+                {name}
+              </span>
             </div>
           );
         },
@@ -116,7 +92,7 @@ function RouteComponent() {
         cell: ({ row }) => {
           // This would come from a JOIN or separate query counting items in this category
           const itemCount =
-            ((row.original as any)?.items?.[0]?.count as number) || 0;
+            ((row.original as any)?.items?.[0].count as number) || 0;
 
           return (
             <div className="flex items-center gap-2">
@@ -181,8 +157,7 @@ function RouteComponent() {
         },
       },
     ],
-
-    baseQueryKey: ["catalog"],
+    baseQueryKey: ["category"],
   });
 
   // const page = Number(searchParams.page) + 1;
@@ -200,38 +175,41 @@ function RouteComponent() {
   );
 
   const { data, isLoading, isError } = useQuery<
-    IPaginationResponse<Database["public"]["Tables"]["catalog"]["Row"]>
+    IPaginationResponse<Database["public"]["Tables"]["item_category"]["Row"]>
   >({
     queryKey,
     queryFn: async () => {
       const QueryBuilder = supabase
-        .from("catalog")
+        .from("item_category")
         .select(
           `
-          *,
-          items:catalog_transitions(count)
-          `,
+      *,
+      items:item(count)
+    `,
           { count: "exact" }
         )
         .range(from, to);
+
       if (searchParams.search) {
         // this ORs order_id = X
         if (!isNaN(searchParams.search as any)) {
-          QueryBuilder.eq(`catalog_id`, searchParams.search as any);
+          QueryBuilder.eq(`category_id`, searchParams.search as any);
         }
         if (searchParams.search) {
           QueryBuilder.ilike(`name`, `%${searchParams.search as any}%`);
         }
       }
-
       if (searchParams.sort) {
         QueryBuilder.order(searchParams.sort.by as any, {
           ascending: searchParams.sort.order === "asc",
         });
       }
+
       const { data, count, error } = await QueryBuilder;
 
       if (error) throw error;
+
+      // Transform the response: item is a nested object with count
 
       return buildPaginationResponse(data, searchParams, count);
     },
@@ -239,8 +217,8 @@ function RouteComponent() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between sticky top-[52px] py-3 bg-background/20 backdrop-blur-xl z-[100] md:px-8 px-4">
-        <CardTitle>Catalogs Management</CardTitle>
-        <Button variant={"outline"}>Create Product</Button>
+        <CardTitle>Categories Management</CardTitle>
+        <Button variant={"outline"}>Create Category</Button>
       </div>
       <div className="md:px-8 px-4">
         <Card>

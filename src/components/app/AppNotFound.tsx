@@ -13,7 +13,7 @@ import { Home, ArrowLeft, Search } from "lucide-react";
 
 export function AppNotFound() {
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br dark:bg-accent bg-white">
       <Card className="w-full max-w-md text-center">
         <CardHeader className="pb-4">
           <div className="mx-auto mb-4 text-6xl font-bold text-gray-400 dark:text-gray-600">
