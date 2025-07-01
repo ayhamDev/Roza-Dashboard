@@ -83,7 +83,7 @@ function RouteComponent() {
                   <span className="truncate max-w-[150px]">{client?.name}</span>
                   <Button
                     size={"icon"}
-                    className={"h-6 w-6 ml-auto"}
+                    className={"h-[28px] w-[28px] ml-auto cursor-pointer"}
                     variant={"outline"}
                     title="Open"
                   >

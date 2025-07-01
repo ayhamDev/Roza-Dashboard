@@ -4,6 +4,9 @@ import AppNotFound from "@/components/app/AppNotFound";
 import { NuqsAdapter } from "nuqs/adapters/react";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { SheetProvider } from "@/context/sheets";
+import { Toaster } from "@/components/ui/sonner";
+
 const queryClient = new QueryClient();
 
 export const Route = createRootRoute({
@@ -18,8 +21,14 @@ function RootComponent() {
   return (
     <NuqsAdapter>
       <QueryClientProvider client={queryClient}>
-        <Outlet />
-        <ReactQueryDevtools initialIsOpen={false} />
+        <SheetProvider>
+          <Outlet />
+        </SheetProvider>
+        <Toaster />
+        <ReactQueryDevtools
+          initialIsOpen={false}
+          buttonPosition="bottom-left"
+        />
       </QueryClientProvider>
     </NuqsAdapter>
   );

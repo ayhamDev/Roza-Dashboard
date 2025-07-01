@@ -16,7 +16,7 @@ const AppBreadcrumbs = () => {
   const { breadcrumbs } = useBreadcrumbs();
 
   return (
-    <header className="w-full md:px-8 px-4 py-3 mb-4 backdrop-blur-md shadow-lg bg-sidebar border-b border-sidebar-border  z-[100] sticky top-0">
+    <header className="w-full md:px-8 px-4 py-3 mb-4 backdrop-blur-xl shadow-lg bg-background/20 border-b border-sidebar-border  z-[20] sticky top-0">
       <div className="flex items-center gap-4">
         <SidebarTrigger />
         <Breadcrumb>

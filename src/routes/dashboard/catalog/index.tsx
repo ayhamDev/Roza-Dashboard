@@ -16,14 +16,7 @@ import { supabase } from "@/supabase";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
-import {
-  Book,
-  BookOpen,
-  Calendar,
-  Hash,
-  ImageIcon,
-  Package,
-} from "lucide-react";
+import { BookOpen, Calendar, Eye, EyeOff, Hash } from "lucide-react";
 import { useLayoutEffect, useMemo } from "react";
 
 export const Route = createFileRoute("/dashboard/catalog/")({
@@ -125,6 +118,36 @@ function RouteComponent() {
                 className="font-medium text-sm"
               >
                 {itemCount} {itemCount === 1 ? "item" : "items"}
+              </Badge>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "status",
+        header: ({ column }) => (
+          <DataTableColumnHeader icon={Eye} column={column} title="Status" />
+        ),
+        cell: ({ row }) => {
+          const isVisible = row.getValue("is_catalog_visible") as boolean;
+
+          return (
+            <div className="flex items-center gap-2">
+              <Badge
+                variant={isVisible ? "default" : "secondary"}
+                className="font-medium text-sm"
+              >
+                {isVisible ? (
+                  <>
+                    <Eye className="h-3 w-3 mr-1" />
+                    Enabled
+                  </>
+                ) : (
+                  <>
+                    <EyeOff className="h-3 w-3 mr-1" />
+                    Disabled
+                  </>
+                )}
               </Badge>
             </div>
           );

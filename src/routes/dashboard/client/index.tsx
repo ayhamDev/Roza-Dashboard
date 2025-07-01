@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { useBreadcrumbs } from "@/context/breadcrumpst";
+import { useSheet } from "@/context/sheets";
 import { useTable } from "@/hooks/use-table";
 import type { Database } from "@/interface/database.types";
 import type { IPaginationResponse } from "@/interface/PaginationProps.interface";
@@ -17,7 +18,15 @@ import { supabase } from "@/supabase";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
-import { Calendar, Hash, Mail, MessageCircle, Phone, User } from "lucide-react";
+import {
+  Calendar,
+  Hash,
+  Mail,
+  MessageCircle,
+  Phone,
+  Plus,
+  User,
+} from "lucide-react";
 import { useLayoutEffect, useMemo } from "react";
 
 export const Route = createFileRoute("/dashboard/client/")({
@@ -26,7 +35,7 @@ export const Route = createFileRoute("/dashboard/client/")({
 
 function RouteComponent() {
   const { setBreadcrumbs } = useBreadcrumbs();
-
+  const { openSheet } = useSheet();
   useLayoutEffect(() => {
     setBreadcrumbs([
       {
@@ -268,9 +277,18 @@ function RouteComponent() {
   });
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between sticky top-[52px] py-3 bg-background/20 backdrop-blur-xl z-[100] md:px-8 px-4">
+      <div className="flex items-center justify-between py-3 bg-background/20 backdrop-blur-xl  md:px-8 px-4">
         <CardTitle>Clients Management</CardTitle>
-        <Button variant={"outline"}>Create Client</Button>
+        <Button
+          onClick={() => {
+            openSheet("client:create", { id: "hello" });
+          }}
+          className="cursor-pointer"
+          variant={"default"}
+          size={"lg"}
+        >
+          <Plus /> Create Client
+        </Button>
       </div>
       <div className="md:px-8 px-4">
         <Card>
