@@ -31,6 +31,7 @@ import {
   Hash,
   ImageIcon,
   Package,
+  Plus,
   Tag,
 } from "lucide-react";
 import { useLayoutEffect, useMemo } from "react";
@@ -430,6 +431,7 @@ function RouteComponent() {
           className="cursor-pointer"
           onClick={() => openSheet("product:create")}
         >
+          <Plus />
           Create Product
         </Button>
       </div>

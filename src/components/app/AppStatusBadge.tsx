@@ -18,6 +18,7 @@ type OrderStatus =
 
 interface StatusBadgeProps {
   status: OrderStatus;
+  border?: boolean;
   className?: string;
 }
 export const statusConfig = {
@@ -58,7 +59,11 @@ export const statusConfig = {
   },
 };
 
-export function AppStatusBadge({ status, className }: StatusBadgeProps) {
+export function AppStatusBadge({
+  status,
+  border = true,
+  className,
+}: StatusBadgeProps) {
   const config = statusConfig[status] || {
     icon: AlertCircle,
     label: status,

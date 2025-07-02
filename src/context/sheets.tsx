@@ -19,6 +19,10 @@ import UpdateProductSheet from "@/components/sheets/product/Update";
 import ViewProductSheet from "@/components/sheets/product/View";
 import ViewCatalogSheet from "@/components/sheets/catalog/View";
 import UpdateCatalogSheet from "@/components/sheets/catalog/Update";
+import CreateCatalogSheet from "@/components/sheets/catalog/Create";
+import ViewOrderSheet from "@/components/sheets/order/View";
+import UpdateOrderSheet from "@/components/sheets/order/Update";
+import CreateOrderSheet from "@/components/sheets/order/Create";
 
 export type Sheets =
   | "client:create"
@@ -32,7 +36,10 @@ export type Sheets =
   | "product:view"
   | "catalog:create"
   | "catalog:update"
-  | "catalog:view";
+  | "catalog:view"
+  | "order:create"
+  | "order:update"
+  | "order:view";
 
 const sheetComponents: Record<Sheets, React.ComponentType<any>> = {
   // Client
@@ -49,9 +56,14 @@ const sheetComponents: Record<Sheets, React.ComponentType<any>> = {
   "product:view": ViewProductSheet,
 
   // catalog
-  "catalog:create": CreateProductSheet,
+  "catalog:create": CreateCatalogSheet,
   "catalog:update": UpdateCatalogSheet,
   "catalog:view": ViewCatalogSheet,
+
+  // order
+  "order:create": CreateOrderSheet,
+  "order:update": UpdateOrderSheet,
+  "order:view": ViewOrderSheet,
 };
 
 interface SheetState {

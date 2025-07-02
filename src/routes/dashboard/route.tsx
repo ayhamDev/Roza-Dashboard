@@ -9,6 +9,19 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function DashboardLayout() {
+  // const location = useLocation();
+
+  // // Routes that should not have layout
+  // const noLayoutPaths = ["/builder"];
+
+  // if (noLayoutPaths?.some((path) => location.pathname.includes(path))) {
+  //   return (
+  //     <div className="w-full h-full flex flex-1 flex-col gap-4  pt-0 ">
+  //       <Outlet />
+  //     </div>
+  //   );
+  // }
+
   return (
     <BreadcrumbsProvider>
       <SidebarProvider>

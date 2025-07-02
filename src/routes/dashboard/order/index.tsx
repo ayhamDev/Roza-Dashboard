@@ -28,11 +28,13 @@ import {
   ExternalLink,
   Eye,
   Hash,
+  Plus,
   ShoppingCart,
   Tag,
   User,
 } from "lucide-react";
 import { useLayoutEffect, useMemo } from "react";
+import { id } from "zod/v4/locales";
 
 export const Route = createFileRoute("/dashboard/order/")({
   component: RouteComponent,
@@ -126,7 +128,10 @@ function RouteComponent() {
               <Button
                 variant="outline"
                 className="font-medium text-sm cursor-pointer select-none max-w-[150px] "
-                title="Open"
+                title="Open Catalog"
+                onClick={() => {
+                  openSheet("catalog:view", { id: row.original.catalog_id });
+                }}
               >
                 <span className="truncate max-w-[120px]">{catalog?.name}</span>
 
@@ -176,8 +181,8 @@ function RouteComponent() {
               icon: Eye,
               label: "View ",
               action: (row) => {
-                return openSheet("client:view", {
-                  id: row.getValue("client_id") as string,
+                return openSheet("order:view", {
+                  id: row.getValue("order_id") as string,
                 });
               },
             },
@@ -185,8 +190,8 @@ function RouteComponent() {
               icon: Edit,
               label: "Edit",
               action: (row) => {
-                return openSheet("client:update", {
-                  id: row.getValue("client_id") as string,
+                return openSheet("order:update", {
+                  id: row.getValue("order_id") as string,
                 });
               },
             },
@@ -329,7 +334,14 @@ function RouteComponent() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between py-3 bg-background/20 backdrop-blur-xl  md:px-8 px-4 min-h-[64px]">
         <CardTitle>Orders Management</CardTitle>
-        {/* <Button variant={"outline"}>Create Client</Button> */}
+        <Button
+          variant={"default"}
+          className="cursor-pointer"
+          onClick={() => openSheet("order:create")}
+        >
+          <Plus />
+          Create Order
+        </Button>
       </div>
       <div className="md:px-8 px-4">
         <Card>

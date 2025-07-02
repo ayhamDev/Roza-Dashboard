@@ -25,6 +25,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import {
   Sheet,
@@ -41,9 +48,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import type { DialogProps } from "@radix-ui/react-dialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Activity,
   DollarSign,
   Edit,
   Eye,
+  FileEdit,
   Loader2,
   Package,
   Plus,
@@ -58,7 +67,13 @@ import { toast } from "sonner";
 import * as z from "zod";
 
 const formSchema = z.object({
-  name: z.string().min(1, "Name is required"),
+  name: z
+    .string()
+    .min(1, "Name is required")
+    .max(150, "Name must be 150 characters or less"),
+  status: z.enum(["enabled", "disabled", "draft"], {
+    required_error: "Please select a status",
+  }),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -73,12 +88,11 @@ interface Product {
   stock_quantity: number;
   is_catalog_visible: boolean;
   image_url?: string;
-  category_id?: number;
   created_at: string;
   updated_at?: string;
 }
 
-const CreateCategorySheet = (
+const CreateCatalogSheet = (
   props: React.ComponentProps<React.FC<DialogProps>>
 ) => {
   const IsMobile = useIsMobile();
@@ -94,6 +108,7 @@ const CreateCategorySheet = (
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
+      status: "enabled",
     },
   });
 
@@ -132,54 +147,48 @@ const CreateCategorySheet = (
     try {
       setIsSaving(true);
 
-      // Create category first
-      const { data: categoryData, error: categoryError } = await supabase
-        .from("item_category")
+      // Create catalog first
+      const { data: catalogData, error: catalogError } = await supabase
+        .from("catalog")
         .insert({
           name: data.name,
+          status: data.status,
         })
         .select()
         .single();
 
-      if (categoryError) {
-        throw categoryError;
+      if (catalogError) {
+        throw catalogError;
       }
 
-      // If products are selected, assign them to the new category
+      // If products are selected, create catalog transitions
       if (selectedProducts.length > 0) {
-        const productUpdates = selectedProducts.map((product) =>
-          supabase
-            .from("item")
-            .update({
-              category_id: categoryData.category_id,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("item_id", product.item_id)
-        );
+        const transitionInserts = selectedProducts.map((product) => ({
+          catalog_id: catalogData.catalog_id,
+          item_id: product.item_id,
+        }));
 
-        // Execute all product updates in parallel
-        const results = await Promise.allSettled(productUpdates);
+        const { error: transitionsError } = await supabase
+          .from("catalog_transitions")
+          .insert(transitionInserts);
 
-        // Check for any failures
-        const failures = results.filter(
-          (result) => result.status === "rejected"
-        );
-        if (failures.length > 0) {
-          console.error("Some product updates failed:", failures);
-          toast.error(
-            "Category created but some products couldn't be assigned",
-            {
-              description:
-                "You can assign them later from the category details",
-            }
+        if (transitionsError) {
+          // If transitions fail, we should probably delete the catalog or warn the user
+          console.error(
+            "Failed to create catalog transitions:",
+            transitionsError
           );
+          toast.error("Catalog created but products couldn't be added", {
+            description:
+              "You can add products to the catalog later from the catalog details page.",
+          });
         } else {
-          toast.success("Category created successfully!", {
-            description: `${selectedProducts.length} products assigned to the new category`,
+          toast.success("Catalog created successfully!", {
+            description: `${selectedProducts.length} products added to the new catalog`,
           });
         }
       } else {
-        toast.success("Category created successfully!");
+        toast.success("Catalog created successfully!");
       }
 
       props?.onOpenChange?.(false);
@@ -187,7 +196,7 @@ const CreateCategorySheet = (
       // Invalidate queries
       qc.invalidateQueries({
         predicate: (query) =>
-          (query.queryKey?.[0] as string)?.startsWith?.("category") ||
+          (query.queryKey?.[0] as string)?.startsWith?.("catalog") ||
           (query.queryKey?.[0] as string)?.startsWith?.("product") ||
           (query.queryKey?.[0] as string)?.startsWith?.("item"),
       });
@@ -346,7 +355,7 @@ const CreateCategorySheet = (
             <SheetTitle className="flex items-center gap-2">
               <span>Create New</span>
               <Badge variant={"secondary"} className="text-lg">
-                Category
+                Catalog
               </Badge>
             </SheetTitle>
             <SheetClose asChild>
@@ -370,15 +379,61 @@ const CreateCategorySheet = (
                     render={({ field }) => (
                       <FormItem className="grid grid-cols-3 gap-4 items-start space-y-0">
                         <FormLabel className="text-right col-span-1 font-medium text-muted-foreground">
-                          Category Name
+                          Catalog Name
                         </FormLabel>
                         <div className="space-y-2 col-span-2">
                           <FormControl>
                             <Input
-                              placeholder="Enter category name"
+                              placeholder="Enter catalog name"
                               {...field}
                             />
                           </FormControl>
+                          <FormMessage />
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Status */}
+                  <FormField
+                    control={form.control}
+                    name="status"
+                    render={({ field }) => (
+                      <FormItem className="grid grid-cols-3 gap-4 items-start space-y-0">
+                        <FormLabel className="text-right col-span-1 font-medium text-muted-foreground">
+                          Status
+                        </FormLabel>
+                        <div className="space-y-2 col-span-2">
+                          <Select
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select catalog status" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="enabled">
+                                <div className="flex items-center gap-2">
+                                  <Activity className="h-4 w-4 text-green-500" />
+                                  <span>Enabled</span>
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="disabled">
+                                <div className="flex items-center gap-2">
+                                  <Activity className="h-4 w-4 text-red-500" />
+                                  <span>Disabled</span>
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="draft">
+                                <div className="flex items-center gap-2">
+                                  <FileEdit className="h-4 w-4 text-yellow-500" />
+                                  <span>Draft</span>
+                                </div>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </div>
                       </FormItem>
@@ -393,7 +448,7 @@ const CreateCategorySheet = (
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold flex items-center gap-2">
                       <Package className="h-5 w-5" />
-                      Products to Assign
+                      Products to Add
                       {selectedProducts.length > 0 && (
                         <Badge variant="outline" className="ml-2">
                           {selectedProducts.length}
@@ -515,8 +570,8 @@ const CreateCategorySheet = (
                         No products selected
                       </h3>
                       <p className="text-xs text-muted-foreground max-w-sm mx-auto mb-4">
-                        You can create the category without products and assign
-                        them later, or use the "Add Product" button to select
+                        You can create the catalog without products and add them
+                        later, or use the "Add Product" button to select
                         products now.
                       </p>
                     </div>
@@ -544,11 +599,11 @@ const CreateCategorySheet = (
               {isSaving ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Creating Category...
+                  Creating Catalog...
                 </>
               ) : (
                 <>
-                  Create Category
+                  Create Catalog
                   {selectedProducts.length > 0 && (
                     <Badge
                       variant="secondary"
@@ -567,4 +622,4 @@ const CreateCategorySheet = (
   );
 };
 
-export default CreateCategorySheet;
+export default CreateCatalogSheet;

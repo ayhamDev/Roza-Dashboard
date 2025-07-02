@@ -52,6 +52,7 @@ import {
   DollarSign,
   Edit,
   Eye,
+  FileEdit,
   Loader2,
   Package,
   Plus,
@@ -274,6 +275,7 @@ const UpdateCatalogSheet = (props: UpdateCatalogSheetProps) => {
       // Only update product transitions if there are changes
       if (productChanges.hasChanges) {
         const updates = [];
+        const errors = [];
 
         // Add new product transitions
         if (productChanges.added.length > 0) {
@@ -286,42 +288,120 @@ const UpdateCatalogSheet = (props: UpdateCatalogSheetProps) => {
           updates.push(...addTransitions);
         }
 
-        // Remove product transitions
-        // Remove product transitions (this removes products from catalog, but keeps the actual products intact)
+        // Remove product transitions with better error handling
         if (productChanges.removed.length > 0) {
-          const removeTransitions = productChanges.removed.map((productId) =>
-            supabase
-              .from("catalog_transitions") // Only deleting from transitions table
-              .delete()
-              .eq("catalog_id", Number.parseInt(id))
-              .eq("item_id", productId)
-          );
-          updates.push(...removeTransitions);
+          for (const productId of productChanges.removed) {
+            try {
+              const { error } = await supabase
+                .from("catalog_transitions")
+                .delete()
+                .eq("catalog_id", Number.parseInt(id))
+                .eq("item_id", productId);
+
+              if (error) {
+                // Check if it's a foreign key constraint error
+                if (error.code === "23503") {
+                  errors.push({
+                    productId,
+                    error:
+                      "Cannot remove product - it's referenced in existing orders",
+                    type: "constraint",
+                  });
+                } else {
+                  errors.push({
+                    productId,
+                    error: error.message,
+                    type: "other",
+                  });
+                }
+              }
+            } catch (err) {
+              errors.push({
+                productId,
+                error: err instanceof Error ? err.message : "Unknown error",
+                type: "other",
+              });
+            }
+          }
         }
 
-        // Execute all updates in parallel
-        const results = await Promise.allSettled(updates);
+        // Execute remaining updates (additions) in parallel
+        if (updates.length > 0) {
+          const results = await Promise.allSettled(updates);
+          const addFailures = results.filter(
+            (result) => result.status === "rejected"
+          );
 
-        // Check for any failures
-        const failures = results.filter(
-          (result) => result.status === "rejected"
-        );
-        if (failures.length > 0) {
-          console.error("Some product transition updates failed:", failures);
-          toast.error("Catalog updated but some product changes failed", {
-            description:
-              "Some products couldn't be added or removed from the catalog",
-          });
+          if (addFailures.length > 0) {
+            console.error("Some product additions failed:", addFailures);
+            errors.push(
+              ...addFailures.map((failure, index) => ({
+                productId: productChanges.added[index]?.item_id,
+                error: "Failed to add product to catalog",
+                type: "addition",
+              }))
+            );
+          }
+        }
+
+        // Handle results and show appropriate messages
+        if (errors.length > 0) {
+          const constraintErrors = errors.filter(
+            (e) => e.type === "constraint"
+          );
+          const otherErrors = errors.filter((e) => e.type !== "constraint");
+
+          if (constraintErrors.length > 0) {
+            // Reset the products that couldn't be removed back to selected state
+            const failedRemovals = constraintErrors.map((e) => e.productId);
+            const originalProducts = catalogTransitions
+              .filter((t) => failedRemovals.includes(t.item_id))
+              .map((t) => t.item)
+              .filter(Boolean);
+
+            setSelectedProducts((prev) => {
+              const currentIds = new Set(prev.map((p) => p.item_id));
+              const toAdd = originalProducts.filter(
+                (p) => !currentIds.has(p.item_id)
+              );
+              return [...prev, ...toAdd];
+            });
+
+            toast.error("Some products couldn't be removed", {
+              description: `${constraintErrors.length} product(s) are referenced in existing orders and cannot be removed from the catalog.`,
+            });
+          }
+
+          if (otherErrors.length > 0) {
+            toast.error("Some changes failed", {
+              description: `${otherErrors.length} product change(s) failed due to other errors.`,
+            });
+          }
+
+          // If there were successful changes, show partial success
+          const successfulAdds =
+            productChanges.added.length -
+            errors.filter((e) => e.type === "addition").length;
+          const successfulRemoves =
+            productChanges.removed.length -
+            errors.filter((e) => e.type === "constraint" || e.type === "other")
+              .length;
+
+          if (successfulAdds > 0 || successfulRemoves > 0) {
+            toast.success("Catalog partially updated", {
+              description: `${successfulAdds} products added, ${successfulRemoves} products removed successfully.`,
+            });
+          }
         } else {
           toast.success("Catalog updated successfully!", {
-            description: `${productChanges.added.length} products added to catalog, ${productChanges.removed.length} products removed from catalog`,
+            description: `${productChanges.added.length} products added, ${productChanges.removed.length} products removed from catalog`,
           });
         }
       } else {
         toast.success("Catalog updated successfully!");
       }
 
-      // Update original product IDs to current state
+      // Update original product IDs to current state (only for successfully processed items)
       setOriginalProductIds(new Set(selectedProducts.map((p) => p.item_id)));
 
       // Invalidate queries
@@ -443,7 +523,7 @@ const UpdateCatalogSheet = (props: UpdateCatalogSheetProps) => {
                   variant="ghost"
                   className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
                   onClick={() => removeProduct(product.item_id)}
-                  title="Remove from catalog (product will remain in system)"
+                  title="Remove from catalog (Note: Products in existing orders cannot be removed)"
                 >
                   <X className="h-3 w-3" />
                 </Button>
@@ -582,7 +662,7 @@ const UpdateCatalogSheet = (props: UpdateCatalogSheetProps) => {
                                 </SelectItem>
                                 <SelectItem value="draft">
                                   <div className="flex items-center gap-2">
-                                    <Activity className="h-4 w-4 text-yellow-500" />
+                                    <FileEdit className="h-4 w-4 text-yellow-500" />
                                     <span>Draft</span>
                                   </div>
                                 </SelectItem>

@@ -19,7 +19,7 @@ import { supabase } from "@/supabase";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
-import { Calendar, Delete, Edit, Eye, Hash, Tag } from "lucide-react";
+import { Calendar, Delete, Edit, Eye, Hash, Plus, Tag } from "lucide-react";
 import { useLayoutEffect, useMemo } from "react";
 
 export const Route = createFileRoute("/dashboard/category/")({
@@ -264,6 +264,7 @@ function RouteComponent() {
             openSheet("category:create");
           }}
         >
+          <Plus />
           Create Category
         </Button>{" "}
       </div>

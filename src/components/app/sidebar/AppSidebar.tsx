@@ -77,7 +77,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           ]}
         />
         <AppSidebarNav
-          title="Stock Management"
+          title="Inventory Management"
           items={[
             {
               title: "Products",
@@ -92,7 +92,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           ]}
         />
         <AppSidebarNav
-          title="Catalogs Management"
+          title="Distribution Management"
           items={[
             {
               title: "Catalogs",

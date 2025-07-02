@@ -20,19 +20,40 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 import {
+  Activity,
   BookOpen,
   Calendar,
   Delete,
   Edit,
   Eye,
-  EyeOff,
+  FileEdit,
   Hash,
+  Plus,
 } from "lucide-react";
 import { useLayoutEffect, useMemo } from "react";
 
 export const Route = createFileRoute("/dashboard/catalog/")({
   component: RouteComponent,
 });
+const getStatusInfo = (status: string) => {
+  switch (status) {
+    case "enabled":
+      return {
+        icon: <Activity className="h-4 w-4 text-green-500" />,
+        label: "Enabled",
+      };
+    case "disabled":
+      return {
+        icon: <Activity className="h-4 w-4 text-red-500" />,
+        label: "Disabled",
+      };
+    default:
+      return {
+        icon: <FileEdit className="h-4 w-4 text-yellow-500" />,
+        label: "Draft",
+      };
+  }
+};
 
 function RouteComponent() {
   const { setBreadcrumbs } = useBreadcrumbs();
@@ -140,27 +161,11 @@ function RouteComponent() {
           <DataTableColumnHeader icon={Eye} column={column} title="Status" />
         ),
         cell: ({ row }) => {
-          const isVisible = row.getValue("is_catalog_visible") as boolean;
-
           return (
-            <div className="flex items-center gap-2">
-              <Badge
-                variant={isVisible ? "default" : "secondary"}
-                className="font-medium text-sm"
-              >
-                {isVisible ? (
-                  <>
-                    <Eye className="h-3 w-3 mr-1" />
-                    Enabled
-                  </>
-                ) : (
-                  <>
-                    <EyeOff className="h-3 w-3 mr-1" />
-                    Disabled
-                  </>
-                )}
-              </Badge>
-            </div>
+            <Badge variant={"secondary"} className="flex items-center gap-2">
+              {getStatusInfo(row.getValue("status") as string).icon}
+              {getStatusInfo(row.getValue("status") as string).label}
+            </Badge>
           );
         },
       },
@@ -255,11 +260,6 @@ function RouteComponent() {
     baseQueryKey: ["catalog"],
   });
 
-  // const page = Number(searchParams.page) + 1;
-  // const limit = 10;
-  // const from = (page - 1) * limit;
-  // const to = from + limit - 1;
-
   const page = useMemo(
     () => parsePageParam(searchParams.page),
     [searchParams.page]
@@ -310,7 +310,14 @@ function RouteComponent() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between py-3 bg-background/20 backdrop-blur-xl  md:px-8 px-4 min-h-[64px]">
         <CardTitle>Catalogs Management</CardTitle>
-        <Button variant={"default"} className="cursor-pointer">
+        <Button
+          variant={"default"}
+          className="cursor-pointer"
+          onClick={() => {
+            openSheet("catalog:create");
+          }}
+        >
+          <Plus />
           Create Catalog
         </Button>
       </div>
