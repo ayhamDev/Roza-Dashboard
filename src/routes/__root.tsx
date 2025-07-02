@@ -24,7 +24,7 @@ function RootComponent() {
         <SheetProvider>
           <Outlet />
         </SheetProvider>
-        <Toaster />
+        <Toaster position="top-center" />
         <ReactQueryDevtools
           initialIsOpen={false}
           buttonPosition="bottom-left"

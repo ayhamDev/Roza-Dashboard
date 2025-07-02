@@ -11,6 +11,7 @@ import {
 import { useBreadcrumbs } from "@/context/breadcrumpst";
 import React from "react";
 import { SidebarTrigger } from "../ui/sidebar";
+import { Link } from "@tanstack/react-router";
 
 const AppBreadcrumbs = () => {
   const { breadcrumbs } = useBreadcrumbs();
@@ -27,8 +28,8 @@ const AppBreadcrumbs = () => {
                   {item.isActive ? (
                     <BreadcrumbPage>{item.label}</BreadcrumbPage>
                   ) : (
-                    <BreadcrumbLink href={item.href ?? "#"}>
-                      {item.label}
+                    <BreadcrumbLink href={item.href ?? "#"} asChild>
+                      <Link to={item.href ?? "#"}>{item.label}</Link>
                     </BreadcrumbLink>
                   )}
                 </BreadcrumbItem>

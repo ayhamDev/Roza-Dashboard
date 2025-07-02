@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
-import type { Database } from "@/interface/database.types";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/supabase";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -133,7 +132,7 @@ const CreateClientSheet = (
           IsMobile && "min-w-auto w-full"
         )}
       >
-        <ScrollArea className="max-h-full">
+        <ScrollArea className="max-h-full min-h-full">
           <SheetHeader className="flex flex-row justify-between items-center border-b select-none border-sidebar-border sticky top-0 bg-background/60 backdrop-blur-lg mb-4">
             <SheetTitle className="flex items-center gap-2">
               <span>Create New</span>

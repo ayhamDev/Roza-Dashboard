@@ -1,13 +1,16 @@
 import { AppStatusBadge, statusConfig } from "@/components/app/AppStatusBadge";
 import { DataTable } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
+import { DataTableRowActions } from "@/components/data-table/data-table-row-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { useBreadcrumbs } from "@/context/breadcrumpst";
+import { useSheet } from "@/context/sheets";
 import { useTable } from "@/hooks/use-table";
 import type { Database } from "@/interface/database.types";
 import type { IPaginationResponse } from "@/interface/PaginationProps.interface";
+import type { RowActionItem } from "@/interface/RowAction.interface";
 import {
   buildPaginationResponse,
   parsePageParam,
@@ -19,8 +22,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 import {
   Calendar,
+  Delete,
   DollarSign,
+  Edit,
   ExternalLink,
+  Eye,
   Hash,
   ShoppingCart,
   Tag,
@@ -34,6 +40,7 @@ export const Route = createFileRoute("/dashboard/order/")({
 
 function RouteComponent() {
   const { setBreadcrumbs } = useBreadcrumbs();
+  const { openSheet } = useSheet();
 
   useLayoutEffect(() => {
     setBreadcrumbs([
@@ -86,6 +93,9 @@ function RouteComponent() {
                     className={"h-[28px] w-[28px] ml-auto cursor-pointer"}
                     variant={"outline"}
                     title="Open"
+                    onClick={() => {
+                      openSheet("client:view", { id: row.original.client_id });
+                    }}
                   >
                     <ExternalLink />
                   </Button>
@@ -115,10 +125,11 @@ function RouteComponent() {
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
-                className="font-medium text-sm cursor-pointer select-none max-w-[150px] truncate"
+                className="font-medium text-sm cursor-pointer select-none max-w-[150px] "
                 title="Open"
               >
-                {catalog?.name}
+                <span className="truncate max-w-[120px]">{catalog?.name}</span>
+
                 <ExternalLink />
               </Button>
             </div>
@@ -155,6 +166,42 @@ function RouteComponent() {
               <span className="font-medium text-sm">${formatted}</span>
             </div>
           );
+        },
+      },
+      {
+        id: "actions",
+        cell: ({ row }) => {
+          const actions: RowActionItem<any>[] = [
+            {
+              icon: Eye,
+              label: "View ",
+              action: (row) => {
+                return openSheet("client:view", {
+                  id: row.getValue("client_id") as string,
+                });
+              },
+            },
+            {
+              icon: Edit,
+              label: "Edit",
+              action: (row) => {
+                return openSheet("client:update", {
+                  id: row.getValue("client_id") as string,
+                });
+              },
+            },
+            {
+              isSeparator: true,
+            },
+            {
+              icon: Delete,
+              label: "Delete ",
+              action: (row) => {
+                console.log(row);
+              },
+            },
+          ];
+          return <DataTableRowActions row={row} actions={actions} />;
         },
       },
       {
@@ -280,7 +327,7 @@ function RouteComponent() {
   });
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between sticky top-[52px] py-3 bg-background/20 backdrop-blur-xl z-[100] md:px-8 px-4">
+      <div className="flex items-center justify-between py-3 bg-background/20 backdrop-blur-xl  md:px-8 px-4 min-h-[64px]">
         <CardTitle>Orders Management</CardTitle>
         {/* <Button variant={"outline"}>Create Client</Button> */}
       </div>

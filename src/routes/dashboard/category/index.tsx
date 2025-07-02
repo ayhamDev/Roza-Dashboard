@@ -1,12 +1,15 @@
 import { DataTable } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
+import { DataTableRowActions } from "@/components/data-table/data-table-row-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { useBreadcrumbs } from "@/context/breadcrumpst";
+import { useSheet } from "@/context/sheets";
 import { useTable } from "@/hooks/use-table";
 import type { Database } from "@/interface/database.types";
 import type { IPaginationResponse } from "@/interface/PaginationProps.interface";
+import type { RowActionItem } from "@/interface/RowAction.interface";
 import {
   buildPaginationResponse,
   parsePageParam,
@@ -16,7 +19,7 @@ import { supabase } from "@/supabase";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
-import { Calendar, Hash, Tag } from "lucide-react";
+import { Calendar, Delete, Edit, Eye, Hash, Tag } from "lucide-react";
 import { useLayoutEffect, useMemo } from "react";
 
 export const Route = createFileRoute("/dashboard/category/")({
@@ -25,7 +28,7 @@ export const Route = createFileRoute("/dashboard/category/")({
 
 function RouteComponent() {
   const { setBreadcrumbs } = useBreadcrumbs();
-
+  const { openSheet } = useSheet();
   useLayoutEffect(() => {
     setBreadcrumbs([
       {
@@ -104,6 +107,42 @@ function RouteComponent() {
               </Badge>
             </div>
           );
+        },
+      },
+      {
+        id: "actions",
+        cell: ({ row }) => {
+          const actions: RowActionItem<any>[] = [
+            {
+              icon: Eye,
+              label: "View ",
+              action: (row) => {
+                return openSheet("category:view", {
+                  id: row.getValue("category_id") as string,
+                });
+              },
+            },
+            {
+              icon: Edit,
+              label: "Edit",
+              action: (row) => {
+                return openSheet("category:update", {
+                  id: row.getValue("category_id") as string,
+                });
+              },
+            },
+            {
+              isSeparator: true,
+            },
+            {
+              icon: Delete,
+              label: "Delete ",
+              action: (row) => {
+                console.log(row);
+              },
+            },
+          ];
+          return <DataTableRowActions row={row} actions={actions} />;
         },
       },
       {
@@ -216,9 +255,17 @@ function RouteComponent() {
   });
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between sticky top-[52px] py-3 bg-background/20 backdrop-blur-xl z-[100] md:px-8 px-4">
+      <div className="flex items-center justify-between py-3 bg-background/20 backdrop-blur-xl  md:px-8 px-4 min-h-[64px]">
         <CardTitle>Categories Management</CardTitle>
-        <Button variant={"outline"}>Create Category</Button>
+        <Button
+          variant={"default"}
+          className="cursor-pointer"
+          onClick={() => {
+            openSheet("category:create");
+          }}
+        >
+          Create Category
+        </Button>{" "}
       </div>
       <div className="md:px-8 px-4">
         <Card>

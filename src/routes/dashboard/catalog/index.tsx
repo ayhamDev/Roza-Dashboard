@@ -1,12 +1,15 @@
 import { DataTable } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
+import { DataTableRowActions } from "@/components/data-table/data-table-row-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { useBreadcrumbs } from "@/context/breadcrumpst";
+import { useSheet } from "@/context/sheets";
 import { useTable } from "@/hooks/use-table";
 import type { Database } from "@/interface/database.types";
 import type { IPaginationResponse } from "@/interface/PaginationProps.interface";
+import type { RowActionItem } from "@/interface/RowAction.interface";
 import {
   buildPaginationResponse,
   parsePageParam,
@@ -16,7 +19,15 @@ import { supabase } from "@/supabase";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
-import { BookOpen, Calendar, Eye, EyeOff, Hash } from "lucide-react";
+import {
+  BookOpen,
+  Calendar,
+  Delete,
+  Edit,
+  Eye,
+  EyeOff,
+  Hash,
+} from "lucide-react";
 import { useLayoutEffect, useMemo } from "react";
 
 export const Route = createFileRoute("/dashboard/catalog/")({
@@ -25,7 +36,7 @@ export const Route = createFileRoute("/dashboard/catalog/")({
 
 function RouteComponent() {
   const { setBreadcrumbs } = useBreadcrumbs();
-
+  const { openSheet } = useSheet();
   useLayoutEffect(() => {
     setBreadcrumbs([
       {
@@ -154,6 +165,42 @@ function RouteComponent() {
         },
       },
       {
+        id: "actions",
+        cell: ({ row }) => {
+          const actions: RowActionItem<any>[] = [
+            {
+              icon: Eye,
+              label: "View ",
+              action: (row) => {
+                return openSheet("catalog:view", {
+                  id: row.getValue("catalog_id") as string,
+                });
+              },
+            },
+            {
+              icon: Edit,
+              label: "Edit",
+              action: (row) => {
+                return openSheet("catalog:update", {
+                  id: row.getValue("catalog_id") as string,
+                });
+              },
+            },
+            {
+              isSeparator: true,
+            },
+            {
+              icon: Delete,
+              label: "Delete ",
+              action: (row) => {
+                console.log(row);
+              },
+            },
+          ];
+          return <DataTableRowActions row={row} actions={actions} />;
+        },
+      },
+      {
         accessorKey: "created_at",
         header: ({ column }) => (
           <DataTableColumnHeader
@@ -261,9 +308,11 @@ function RouteComponent() {
   });
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between sticky top-[52px] py-3 bg-background/20 backdrop-blur-xl z-[100] md:px-8 px-4">
+      <div className="flex items-center justify-between py-3 bg-background/20 backdrop-blur-xl  md:px-8 px-4 min-h-[64px]">
         <CardTitle>Catalogs Management</CardTitle>
-        <Button variant={"outline"}>Create Product</Button>
+        <Button variant={"default"} className="cursor-pointer">
+          Create Catalog
+        </Button>
       </div>
       <div className="md:px-8 px-4">
         <Card>

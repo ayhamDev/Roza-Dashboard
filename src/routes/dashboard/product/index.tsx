@@ -1,13 +1,16 @@
-import { statusConfig } from "@/components/app/AppStatusBadge";
 import { DataTable } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
+import { DataTableRowActions } from "@/components/data-table/data-table-row-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { useBreadcrumbs } from "@/context/breadcrumpst";
+import { useSheet } from "@/context/sheets";
 import { useTable } from "@/hooks/use-table";
 import type { Database } from "@/interface/database.types";
 import type { IPaginationResponse } from "@/interface/PaginationProps.interface";
+import type { RowActionItem } from "@/interface/RowAction.interface";
+import { getImageUrl } from "@/lib/GetImageUrl";
 import {
   buildPaginationResponse,
   parsePageParam,
@@ -19,7 +22,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 import {
   Calendar,
+  Delete,
   DollarSign,
+  Edit,
   ExternalLink,
   Eye,
   EyeOff,
@@ -36,6 +41,7 @@ export const Route = createFileRoute("/dashboard/product/")({
 
 function RouteComponent() {
   const { setBreadcrumbs } = useBreadcrumbs();
+  const { openSheet } = useSheet();
 
   useLayoutEffect(() => {
     setBreadcrumbs([
@@ -91,7 +97,7 @@ function RouteComponent() {
             <div className="flex flex-row items-center gap-4 min-w-[200px]">
               {imageUrl ? (
                 <img
-                  src={imageUrl || "/placeholder.svg"}
+                  src={getImageUrl(imageUrl) || "/placeholder.svg"}
                   alt={name}
                   width={64}
                   height={64}
@@ -136,8 +142,11 @@ function RouteComponent() {
                 variant="outline"
                 className="font-medium text-sm cursor-pointer select-none max-w-[150px] truncate bg-transparent"
                 title="Open Category"
+                onClick={() => {
+                  openSheet("category:view", { id: row.original.category_id });
+                }}
               >
-                {category?.name || "Unknown Category"}
+                <span className="truncate max-w-[120px]">{category?.name}</span>
                 <ExternalLink className="h-3 w-3 ml-1" />
               </Button>
             </div>
@@ -272,6 +281,42 @@ function RouteComponent() {
         },
       },
       {
+        id: "actions",
+        cell: ({ row }) => {
+          const actions: RowActionItem<any>[] = [
+            {
+              icon: Eye,
+              label: "View ",
+              action: (row) => {
+                return openSheet("product:view", {
+                  id: row.getValue("item_id") as string,
+                });
+              },
+            },
+            {
+              icon: Edit,
+              label: "Edit",
+              action: (row) => {
+                return openSheet("product:update", {
+                  id: row.getValue("item_id") as string,
+                });
+              },
+            },
+            {
+              isSeparator: true,
+            },
+            {
+              icon: Delete,
+              label: "Delete ",
+              action: (row) => {
+                console.log(row);
+              },
+            },
+          ];
+          return <DataTableRowActions row={row} actions={actions} />;
+        },
+      },
+      {
         accessorKey: "created_at",
         header: ({ column }) => (
           <DataTableColumnHeader
@@ -378,31 +423,20 @@ function RouteComponent() {
   });
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between sticky top-[52px] py-3 bg-background/20 backdrop-blur-xl z-[100] md:px-8 px-4">
+      <div className="flex items-center justify-between py-3 bg-background/20 backdrop-blur-xl  md:px-8 px-4 min-h-[64px]">
         <CardTitle>Products Management</CardTitle>
-        <Button variant={"outline"}>Create Product</Button>
+        <Button
+          variant={"default"}
+          className="cursor-pointer"
+          onClick={() => openSheet("product:create")}
+        >
+          Create Product
+        </Button>
       </div>
       <div className="md:px-8 px-4">
         <Card>
           <CardContent>
             <DataTable
-              facetedFilters={[
-                {
-                  column: "status",
-                  title: "Order Status",
-                  options: [
-                    ...Object.keys(statusConfig).map((key) => {
-                      return {
-                        value: key as keyof typeof statusConfig,
-                        label:
-                          statusConfig[key as keyof typeof statusConfig].label,
-                        icon: statusConfig[key as keyof typeof statusConfig]
-                          .icon,
-                      };
-                    }), //statusConfig
-                  ],
-                },
-              ]}
               data={data}
               table={table}
               isLoading={isLoading}
