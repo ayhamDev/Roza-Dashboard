@@ -17,6 +17,7 @@ import { Route as DashboardOrderIndexRouteImport } from './routes/dashboard/orde
 import { Route as DashboardClientIndexRouteImport } from './routes/dashboard/client/index'
 import { Route as DashboardCategoryIndexRouteImport } from './routes/dashboard/category/index'
 import { Route as DashboardCatalogIndexRouteImport } from './routes/dashboard/catalog/index'
+import { Route as DashboardCampaignIndexRouteImport } from './routes/dashboard/campaign/index'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -58,11 +59,17 @@ const DashboardCatalogIndexRoute = DashboardCatalogIndexRouteImport.update({
   path: '/catalog/',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
+const DashboardCampaignIndexRoute = DashboardCampaignIndexRouteImport.update({
+  id: '/campaign/',
+  path: '/campaign/',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRouteRouteWithChildren
   '/login': typeof LoginRoute
   '/dashboard/': typeof DashboardIndexRoute
+  '/dashboard/campaign': typeof DashboardCampaignIndexRoute
   '/dashboard/catalog': typeof DashboardCatalogIndexRoute
   '/dashboard/category': typeof DashboardCategoryIndexRoute
   '/dashboard/client': typeof DashboardClientIndexRoute
@@ -72,6 +79,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/dashboard': typeof DashboardIndexRoute
+  '/dashboard/campaign': typeof DashboardCampaignIndexRoute
   '/dashboard/catalog': typeof DashboardCatalogIndexRoute
   '/dashboard/category': typeof DashboardCategoryIndexRoute
   '/dashboard/client': typeof DashboardClientIndexRoute
@@ -83,6 +91,7 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRouteRouteWithChildren
   '/login': typeof LoginRoute
   '/dashboard/': typeof DashboardIndexRoute
+  '/dashboard/campaign/': typeof DashboardCampaignIndexRoute
   '/dashboard/catalog/': typeof DashboardCatalogIndexRoute
   '/dashboard/category/': typeof DashboardCategoryIndexRoute
   '/dashboard/client/': typeof DashboardClientIndexRoute
@@ -95,6 +104,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/login'
     | '/dashboard/'
+    | '/dashboard/campaign'
     | '/dashboard/catalog'
     | '/dashboard/category'
     | '/dashboard/client'
@@ -104,6 +114,7 @@ export interface FileRouteTypes {
   to:
     | '/login'
     | '/dashboard'
+    | '/dashboard/campaign'
     | '/dashboard/catalog'
     | '/dashboard/category'
     | '/dashboard/client'
@@ -114,6 +125,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/login'
     | '/dashboard/'
+    | '/dashboard/campaign/'
     | '/dashboard/catalog/'
     | '/dashboard/category/'
     | '/dashboard/client/'
@@ -184,11 +196,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardCatalogIndexRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
+    '/dashboard/campaign/': {
+      id: '/dashboard/campaign/'
+      path: '/campaign'
+      fullPath: '/dashboard/campaign'
+      preLoaderRoute: typeof DashboardCampaignIndexRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
   }
 }
 
 interface DashboardRouteRouteChildren {
   DashboardIndexRoute: typeof DashboardIndexRoute
+  DashboardCampaignIndexRoute: typeof DashboardCampaignIndexRoute
   DashboardCatalogIndexRoute: typeof DashboardCatalogIndexRoute
   DashboardCategoryIndexRoute: typeof DashboardCategoryIndexRoute
   DashboardClientIndexRoute: typeof DashboardClientIndexRoute
@@ -198,6 +218,7 @@ interface DashboardRouteRouteChildren {
 
 const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardIndexRoute: DashboardIndexRoute,
+  DashboardCampaignIndexRoute: DashboardCampaignIndexRoute,
   DashboardCatalogIndexRoute: DashboardCatalogIndexRoute,
   DashboardCategoryIndexRoute: DashboardCategoryIndexRoute,
   DashboardClientIndexRoute: DashboardClientIndexRoute,

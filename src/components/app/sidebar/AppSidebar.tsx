@@ -3,8 +3,10 @@
 import {
   BookOpen,
   LayoutDashboard,
+  Megaphone,
   Package,
   ShoppingCart,
+  Speaker,
   Tags,
   Users,
 } from "lucide-react";
@@ -98,6 +100,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               title: "Catalogs",
               url: "/dashboard/catalog",
               icon: BookOpen, // 📖 Represents a catalog
+            },
+            {
+              title: "Campaign",
+              url: "/dashboard/campaign",
+              icon: Megaphone,
             },
           ]}
         />

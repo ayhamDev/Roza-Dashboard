@@ -1,4 +1,5 @@
 import AppCopyButton from "@/components/app/AppCopyButton";
+import { ClientStatsCards } from "@/components/card/client-stats-cards";
 import { DataTable } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 import { DataTableRowActions } from "@/components/data-table/data-table-row-actions";
@@ -31,7 +32,6 @@ import {
   Phone,
   Plus,
   User,
-  View,
 } from "lucide-react";
 import { useLayoutEffect, useMemo } from "react";
 
@@ -332,6 +332,7 @@ function RouteComponent() {
         </Button>
       </div>
       <div className="md:px-8 px-4">
+        <ClientStatsCards />
         <Card>
           <CardContent>
             <DataTable

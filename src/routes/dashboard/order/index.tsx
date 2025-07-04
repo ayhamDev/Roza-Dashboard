@@ -1,4 +1,5 @@
 import { AppStatusBadge, statusConfig } from "@/components/app/AppStatusBadge";
+import { OrderStatsCards } from "@/components/card/order-stats-cards";
 import { DataTable } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 import { DataTableRowActions } from "@/components/data-table/data-table-row-actions";
@@ -344,6 +345,7 @@ function RouteComponent() {
         </Button>
       </div>
       <div className="md:px-8 px-4">
+        <OrderStatsCards />
         <Card>
           <CardContent>
             <DataTable
