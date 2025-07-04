@@ -6,6 +6,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SheetProvider } from "@/context/sheets";
 import { Toaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/context/theme";
 
 const queryClient = new QueryClient();
 
@@ -14,7 +15,7 @@ export const Route = createRootRoute({
   errorComponent: ({ error, reset }) => (
     <AppRouteError error={error} reset={reset} />
   ),
-  notFoundComponent: ({}) => <AppNotFound />,
+  notFoundComponent: ({}) => <AppNotFound buttons={true} />,
 });
 
 function RootComponent() {

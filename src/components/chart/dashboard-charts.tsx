@@ -22,13 +22,14 @@ import { useQuery } from "@tanstack/react-query";
 import { format, subDays } from "date-fns";
 import {
   DollarSign,
+  Minus,
   Package,
   ShoppingCart,
+  TrendingDown,
   TrendingUp,
   Truck,
   Users,
 } from "lucide-react";
-import { log } from "node:console";
 import React from "react";
 import {
   Bar,
@@ -41,202 +42,233 @@ import {
   YAxis,
 } from "recharts";
 
-// Type for order status from database
+// Types
 type OrderStatus = Database["public"]["Enums"]["order_status"];
+type ActiveChart = "revenue" | "orders" | "customers";
 
-// Smart rose-based chart configuration
-const chartConfig = {
+// International formatting utilities
+const formatCurrency = (amount: number, locale = "en-US", currency = "USD") => {
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+};
+
+const formatCompactCurrency = (
+  amount: number,
+  locale = "en-US",
+  currency = "USD"
+) => {
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency,
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(amount);
+};
+
+const formatNumber = (value: number, locale = "en-US") => {
+  return new Intl.NumberFormat(locale).format(value);
+};
+
+const formatPercentage = (value: number, locale = "en-US") => {
+  return new Intl.NumberFormat(locale, {
+    style: "percent",
+    maximumFractionDigits: 1,
+  }).format(value / 100);
+};
+
+const formatDate = (
+  date: string | Date,
+  options: Intl.DateTimeFormatOptions = {}
+) => {
+  const defaultOptions: Intl.DateTimeFormatOptions = {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  };
+  return new Date(date).toLocaleDateString("en-US", {
+    ...defaultOptions,
+    ...options,
+  });
+};
+
+// Chart configurations
+const createChartConfig = (isDarkMode: boolean): ChartConfig => ({
   revenue: {
     label: "Revenue",
-    color: getRoseChartColor("revenue"),
+    color: getRoseChartColor("revenue", isDarkMode),
   },
   orders: {
     label: "Orders",
-    color: getRoseChartColor("orders"),
+    color: getRoseChartColor("orders", isDarkMode),
   },
   customers: {
     label: "Customers",
-    color: getRoseChartColor("customers"),
+    color: getRoseChartColor("customers", isDarkMode),
   },
-} satisfies ChartConfig;
-
-const stockChartConfig = {
   stock: {
     label: "Stock",
-    color: getRoseChartColor("primary"),
+    color: getRoseChartColor("primary", isDarkMode),
   },
-} satisfies ChartConfig;
+});
 
-const orderChartConfig = {
-  orders: {
-    label: "Orders",
-  },
+const createOrderStatusConfig = (isDarkMode: boolean): ChartConfig => ({
+  orders: { label: "Orders" },
   Pending: {
     label: "Pending",
-    color: getRoseChartColor("Pending"),
+    color: getRoseChartColor("Pending", isDarkMode),
   },
   Confirmed: {
     label: "Confirmed",
-    color: getRoseChartColor("Confirmed"),
+    color: getRoseChartColor("Confirmed", isDarkMode),
   },
   Shipped: {
     label: "Shipped",
-    color: getRoseChartColor("Shipped"),
+    color: getRoseChartColor("Shipped", isDarkMode),
   },
   Delivered: {
     label: "Delivered",
-    color: getRoseChartColor("Delivered"),
+    color: getRoseChartColor("Delivered", isDarkMode),
   },
   Cancelled: {
     label: "Cancelled",
-    color: getRoseChartColor("Cancelled"),
+    color: getRoseChartColor("Cancelled", isDarkMode),
   },
-} satisfies ChartConfig;
+});
 
-// Custom tooltip component for stock chart
+// Custom tooltip components
 const StockTooltipContent = ({ active, payload }: any) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload;
-    return (
-      <div className="rounded-lg border bg-background p-3 shadow-md">
-        <div className="grid gap-2">
-          <div className="flex flex-col">
-            <span className="text-sm font-medium text-foreground">
-              {data.category}
-            </span>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <div
-                className="h-2 w-2 rounded-full"
-                style={{ backgroundColor: data.fill }}
-              />
-              <span>Stock Level</span>
-            </div>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-sm text-muted-foreground">
-              Items in stock:
-            </span>
-            <span className="text-sm font-bold text-foreground">
-              {data.stock.toLocaleString()} units
-            </span>
-          </div>
-          <div className="text-xs text-muted-foreground">
-            Category represents{" "}
-            {((data.stock / payload[0].payload.totalStock) * 100).toFixed(1)}%
-            of total inventory
-          </div>
-        </div>
-      </div>
-    );
-  }
-  return null;
-};
+  if (!active || !payload?.length) return null;
 
-// Custom tooltip component for order status chart
-const OrderStatusTooltipContent = ({ active, payload }: any) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload;
-    const total = payload[0].payload.totalOrders || 0;
-    const percentage =
-      total > 0 ? ((data.orders / total) * 100).toFixed(1) : "0";
+  const data = payload[0].payload;
+  const percentage =
+    data.totalStock > 0 ? (data.stock / data.totalStock) * 100 : 0;
 
-    // Status descriptions and icons
-    const statusInfo: Record<string, { description: string; icon: string }> = {
-      Pending: {
-        description: "Awaiting confirmation",
-        icon: "⏳",
-      },
-      Confirmed: {
-        description: "Order confirmed, preparing",
-        icon: "✅",
-      },
-      Shipped: {
-        description: "In transit to customer",
-        icon: "🚚",
-      },
-      Delivered: {
-        description: "Successfully completed",
-        icon: "📦",
-      },
-      Cancelled: { description: "Order cancelled", icon: "❌" },
-    };
-
-    const info = statusInfo[data.status] || {
-      description: "Unknown status",
-      icon: "❓",
-      priority: 0,
-    };
-
-    return (
-      <div className="rounded-lg border bg-background p-4 shadow-lg min-w-[200px]">
-        <div className="grid gap-3">
-          {/* Header with status and icon */}
-          <div className="flex items-center gap-2">
-            <span className="text-lg">{info.icon}</span>
-            <div className="flex flex-col">
-              <span className="text-sm font-semibold text-foreground">
-                {data.status} Orders
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {info.description}
-              </span>
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="h-px bg-border" />
-
-          {/* Statistics */}
-          <div className="grid gap-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">
-                Order count:
-              </span>
-              <span className="text-sm font-bold text-foreground">
-                {data.orders.toLocaleString()}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Percentage:</span>
-              <span className="text-sm font-bold text-foreground">
-                {percentage}%
-              </span>
-            </div>
-          </div>
-
-          {/* Color indicator */}
-          <div className="flex items-center gap-2 pt-1">
+  return (
+    <div className="rounded-lg border bg-background p-3 shadow-md">
+      <div className="grid gap-2">
+        <div className="flex flex-col">
+          <span className="text-sm font-medium text-foreground">
+            {data.category}
+          </span>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <div
-              className="h-3 w-3 rounded-full border"
+              className="h-2 w-2 rounded-full"
               style={{ backgroundColor: data.fill }}
             />
+            <span>Stock Level</span>
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-sm text-muted-foreground">Items in stock:</span>
+          <span className="text-sm font-bold text-foreground">
+            {formatNumber(data.stock)} units
+          </span>
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Category represents {formatPercentage(percentage)} of total inventory
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const OrderStatusTooltipContent = ({ active, payload }: any) => {
+  if (!active || !payload?.length) return null;
+
+  const data = payload[0].payload;
+  const total = data.totalOrders || 0;
+  const percentage = total > 0 ? (data.orders / total) * 100 : 0;
+
+  const statusInfo: Record<string, { description: string; icon: string }> = {
+    Pending: { description: "Awaiting confirmation", icon: "⏳" },
+    Confirmed: { description: "Order confirmed, preparing", icon: "✅" },
+    Shipped: { description: "In transit to customer", icon: "🚚" },
+    Delivered: { description: "Successfully completed", icon: "📦" },
+    Cancelled: { description: "Order cancelled", icon: "❌" },
+  };
+
+  const info = statusInfo[data.status] || {
+    description: "Unknown status",
+    icon: "❓",
+  };
+
+  return (
+    <div className="rounded-lg border bg-background p-4 shadow-lg min-w-[200px]">
+      <div className="grid gap-3">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">{info.icon}</span>
+          <div className="flex flex-col">
+            <span className="text-sm font-semibold text-foreground">
+              {data.status} Orders
+            </span>
             <span className="text-xs text-muted-foreground">
-              Chart color indicator
+              {info.description}
             </span>
           </div>
         </div>
+        <div className="h-px bg-border" />
+        <div className="grid gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Order count:</span>
+            <span className="text-sm font-bold text-foreground">
+              {formatNumber(data.orders)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Percentage:</span>
+            <span className="text-sm font-bold text-foreground">
+              {formatPercentage(percentage)}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 pt-1">
+          <div
+            className="h-3 w-3 rounded-full border"
+            style={{ backgroundColor: data.fill }}
+          />
+          <span className="text-xs text-muted-foreground">
+            Chart color indicator
+          </span>
+        </div>
       </div>
-    );
-  }
-  return null;
+    </div>
+  );
+};
+
+// Chart info configuration
+const CHART_INFO = {
+  revenue: {
+    title: "Revenue Analytics",
+    description: "Daily revenue performance and growth trends",
+    icon: DollarSign,
+  },
+  orders: {
+    title: "Order Analytics",
+    description: "Daily order volume and processing trends",
+    icon: ShoppingCart,
+  },
+  customers: {
+    title: "Customer Analytics",
+    description: "Daily customer acquisition and engagement metrics",
+    icon: Users,
+  },
 };
 
 export function DashboardCharts() {
-  const [activeChart, setActiveChart] = React.useState<
-    "revenue" | "orders" | "customers"
-  >("revenue");
+  const [activeChart, setActiveChart] = React.useState<ActiveChart>("revenue");
   const [isDarkMode, setIsDarkMode] = React.useState(false);
 
-  // Detect dark mode
+  // Theme detection
   React.useEffect(() => {
     const checkDarkMode = () => {
       setIsDarkMode(document.documentElement.classList.contains("dark"));
     };
 
     checkDarkMode();
-
-    // Watch for theme changes
     const observer = new MutationObserver(checkDarkMode);
     observer.observe(document.documentElement, {
       attributes: true,
@@ -246,7 +278,7 @@ export function DashboardCharts() {
     return () => observer.disconnect();
   }, []);
 
-  // Fetch revenue/orders data for the last 30 days
+  // Fetch revenue/orders data
   const { data: revenueData = [], isLoading: revenueLoading } = useQuery({
     queryKey: ["dashboard-revenue"],
     queryFn: async () => {
@@ -254,21 +286,13 @@ export function DashboardCharts() {
 
       const { data, error } = await supabase
         .from("order")
-        .select(
-          `
-          created_at,
-          total_amount,
-          client_id
-        `
-        )
+        .select("created_at, total_amount, client_id")
         .gte("created_at", thirtyDaysAgo)
         .neq("status", "Pending")
         .order("created_at", { ascending: true });
-      console.log(data, error);
 
       if (error) throw error;
 
-      // Group by date
       const groupedData = data.reduce((acc: any, order) => {
         const date = format(new Date(order.created_at), "yyyy-MM-dd");
         if (!acc[date]) {
@@ -290,22 +314,20 @@ export function DashboardCharts() {
         customers: item.customers.size,
       }));
     },
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
-  // Fetch stock by category data
+  // Fetch stock data
   const { data: stockData = [], isLoading: stockLoading } = useQuery({
-    queryKey: ["dashboard-stock"],
+    queryKey: ["dashboard-stock", isDarkMode],
     queryFn: async () => {
-      const { data, error } = await supabase.from("item").select(
-        `
+      const { data, error } = await supabase.from("item").select(`
           stock_quantity,
           item_category!inner(name)
-        `
-      );
+        `);
 
       if (error) throw error;
 
-      // Group by category and assign smart rose colors
       const groupedData = data.reduce((acc: any, item) => {
         const categoryName = item.item_category?.name || "Other";
         if (!acc[categoryName]) {
@@ -318,7 +340,6 @@ export function DashboardCharts() {
         return acc;
       }, {});
 
-      // Convert to array and assign smart rose colors
       const categories = Object.values(groupedData).slice(0, 5);
       const totalStock = categories.reduce(
         (sum: number, item: any) => sum + item.stock,
@@ -328,21 +349,21 @@ export function DashboardCharts() {
       return categories.map((item: any, index: number) => ({
         ...item,
         fill: generateRoseColor(index, categories.length, isDarkMode),
-        totalStock, // Add total for percentage calculation in tooltip
+        totalStock,
       }));
     },
+    staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
-  // Fetch order status data using proper enum types
+  // Fetch order status data
   const { data: orderStatusData = [], isLoading: orderStatusLoading } =
     useQuery({
-      queryKey: ["dashboard-order-status"],
+      queryKey: ["dashboard-order-status", isDarkMode],
       queryFn: async () => {
         const { data, error } = await supabase.from("order").select("status");
 
         if (error) throw error;
 
-        // Group by status using proper enum values
         const groupedData = data.reduce((acc: any, order) => {
           const status: OrderStatus = order.status || "Pending";
           if (!acc[status]) {
@@ -355,26 +376,56 @@ export function DashboardCharts() {
           return acc;
         }, {});
 
-        // Convert to array and assign smart rose colors using exact enum values
+        const totalOrders = Object.values(groupedData).reduce(
+          (sum: number, item: any) => sum + item.orders,
+          0
+        );
+
         return Object.entries(groupedData).map(
           ([status, data]: [string, any]) => ({
             ...data,
             fill: getRoseChartColor(status, isDarkMode),
-            totalOrders: Object.values(groupedData).reduce(
-              (sum: number, item: any) => sum + item.orders,
-              0
-            ),
+            totalOrders,
           })
         );
       },
+      staleTime: 2 * 60 * 1000, // 2 minutes
     });
 
+  // Memoized calculations
+  const chartConfig = React.useMemo(
+    () => createChartConfig(isDarkMode),
+    [isDarkMode]
+  );
+  const orderChartConfig = React.useMemo(
+    () => createOrderStatusConfig(isDarkMode),
+    [isDarkMode]
+  );
+  console.log(revenueData);
+
   const revenueGrowth = React.useMemo(() => {
-    if (revenueData.length < 2) return "0";
-    const firstDay = revenueData[0]?.revenue || 0;
-    const lastDay = revenueData[revenueData.length - 1]?.revenue || 0;
-    if (firstDay === 0) return "0";
-    return (((lastDay - firstDay) / firstDay) * 100).toFixed(1);
+    if (revenueData.length < 2)
+      return { value: "0%", isPositive: false, isNeutral: true };
+
+    const firstWeek = revenueData
+      .slice(0, 7)
+      .reduce((sum, day) => sum + day.revenue, 0);
+    const lastWeek = revenueData
+      .slice(-7)
+      .reduce((sum, day) => sum + day.revenue, 0);
+
+    if (firstWeek === 0)
+      return { value: "0%", isPositive: false, isNeutral: true };
+
+    const growth = ((lastWeek - firstWeek) / firstWeek) * 100;
+    const isPositive = growth > 0;
+    const isNeutral = growth === 0;
+
+    return {
+      value: formatPercentage(growth),
+      isPositive,
+      isNeutral,
+    };
   }, [revenueData]);
 
   const totalOrders = React.useMemo(() => {
@@ -384,28 +435,11 @@ export function DashboardCharts() {
     );
   }, [orderStatusData]);
 
-  const getChartInfo = (chart: "revenue" | "orders" | "customers") => {
-    const configs = {
-      revenue: {
-        title: "Revenue Analytics",
-        description: "Daily revenue performance and growth trends",
-        icon: DollarSign,
-      },
-      orders: {
-        title: "Order Analytics",
-        description: "Daily order volume and processing trends",
-        icon: ShoppingCart,
-      },
-      customers: {
-        title: "Customer Analytics",
-        description: "Daily customer acquisition and engagement metrics",
-        icon: Users,
-      },
-    };
-    return configs[chart];
-  };
+  const totalStock = React.useMemo(() => {
+    return stockData.reduce((acc: number, curr: any) => acc + curr.stock, 0);
+  }, [stockData]);
 
-  const currentChartInfo = getChartInfo(activeChart);
+  const currentChartInfo = CHART_INFO[activeChart];
 
   if (revenueLoading || stockLoading || orderStatusLoading) {
     return (
@@ -423,7 +457,7 @@ export function DashboardCharts() {
 
   return (
     <div className="space-y-6">
-      {/* Revenue Analytics Chart - Interactive */}
+      {/* Revenue Analytics Chart */}
       <Card className="w-full">
         <CardHeader className="flex flex-col items-stretch border-b !p-0 sm:flex-row">
           <div className="flex flex-1 flex-col justify-center gap-1 px-6 pt-4 pb-3 sm:!py-0">
@@ -440,29 +474,28 @@ export function DashboardCharts() {
               const config = {
                 revenue: {
                   label: "Revenue",
-                  format: (val: number) =>
-                    val < 1000 ? `$${val}` : `$${(val / 1000).toFixed(0)}k`,
+                  format: (val: number) => formatCompactCurrency(val),
                 },
                 orders: {
                   label: "Orders",
-                  format: (val: number) => val.toLocaleString(),
+                  format: (val: number) => formatNumber(val),
                 },
                 customers: {
                   label: "Customers",
-                  format: (val: number) => val.toLocaleString(),
+                  format: (val: number) => formatNumber(val),
                 },
               };
+
               const total = revenueData.reduce(
                 (acc: number, curr: any) => acc + (curr[key] || 0),
                 0
               );
-              console.log(total);
 
               return (
                 <button
                   key={key}
                   data-active={activeChart === key}
-                  className="data-[active=true]:bg-muted/50 relative z-30 flex flex-1 flex-col justify-center gap-1 border-t px-4 py-3 text-left even:border-l sm:border-t-0 sm:border-l sm:px-6 sm:py-4"
+                  className="data-[active=true]:bg-muted/50 relative z-10 flex flex-1 flex-col justify-center gap-1 border-t px-4 py-3 text-left even:border-l sm:border-t-0 sm:border-l sm:px-6 sm:py-4 transition-colors hover:bg-muted/25"
                   onClick={() => setActiveChart(key)}
                 >
                   <span className="text-muted-foreground text-xs">
@@ -476,6 +509,7 @@ export function DashboardCharts() {
             })}
           </div>
         </CardHeader>
+
         <CardContent className="px-2 sm:p-6">
           <ChartContainer
             config={chartConfig}
@@ -484,10 +518,7 @@ export function DashboardCharts() {
             <BarChart
               accessibilityLayer
               data={revenueData}
-              margin={{
-                left: 12,
-                right: 12,
-              }}
+              margin={{ left: 12, right: 12 }}
             >
               <CartesianGrid vertical={false} className="stroke-border" />
               <XAxis
@@ -497,25 +528,21 @@ export function DashboardCharts() {
                 tickMargin={8}
                 minTickGap={32}
                 className="text-muted-foreground"
-                tickFormatter={(value) => {
-                  const date = new Date(value);
-                  return date.toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  });
-                }}
+                tickFormatter={(value) =>
+                  formatDate(value, { month: "short", day: "numeric" })
+                }
               />
               <ChartTooltip
                 cursor={false}
                 content={
                   <ChartTooltipContent
-                    labelFormatter={(value) => {
-                      return new Date(value).toLocaleDateString("en-US", {
+                    labelFormatter={(value) =>
+                      formatDate(value, {
                         month: "long",
                         day: "numeric",
                         year: "numeric",
-                      });
-                    }}
+                      })
+                    }
                   />
                 }
               />
@@ -526,12 +553,26 @@ export function DashboardCharts() {
               />
             </BarChart>
           </ChartContainer>
+
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-4">
             <Badge
               variant="outline"
-              className="text-green-600 border-green-200 bg-green-50 w-fit dark:text-green-400 dark:border-green-800 dark:bg-green-950"
+              className={`w-fit ${
+                revenueGrowth.isPositive
+                  ? "text-green-600 border-green-200 bg-green-50 dark:text-green-400 dark:border-green-800 dark:bg-green-950"
+                  : revenueGrowth.isNeutral
+                    ? "text-gray-600 border-gray-200 bg-gray-50 dark:text-gray-400 dark:border-gray-800 dark:bg-gray-950"
+                    : "text-red-600 border-red-200 bg-red-50 dark:text-red-400 dark:border-red-800 dark:bg-red-950"
+              }`}
             >
-              <TrendingUp className="h-3 w-3 mr-1" />+{revenueGrowth}% growth
+              {revenueGrowth.isPositive ? (
+                <TrendingUp className="h-3 w-3 mr-1" />
+              ) : revenueGrowth.isNeutral ? (
+                <Minus className="h-3 w-3 mr-1" />
+              ) : (
+                <TrendingDown className="h-3 w-3 mr-1" />
+              )}
+              {revenueGrowth.value} growth
             </Badge>
             <span className="text-xs sm:text-sm text-muted-foreground">
               Last 30 days performance
@@ -553,22 +594,15 @@ export function DashboardCharts() {
               Current inventory levels across categories
             </CardDescription>
           </CardHeader>
+
           <CardContent className="p-0">
             <div className="px-6 pb-6">
-              <ChartContainer
-                config={stockChartConfig}
-                className="h-[280px] w-full"
-              >
+              <ChartContainer config={chartConfig} className="h-[280px] w-full">
                 <BarChart
                   accessibilityLayer
                   data={stockData}
                   layout="vertical"
-                  margin={{
-                    left: 5,
-                    right: 5,
-                    top: 5,
-                    bottom: 5,
-                  }}
+                  margin={{ left: 5, right: 5, top: 5, bottom: 5 }}
                 >
                   <CartesianGrid horizontal={false} className="stroke-border" />
                   <YAxis
@@ -580,11 +614,9 @@ export function DashboardCharts() {
                     width={70}
                     fontSize={10}
                     className="text-muted-foreground"
-                    tickFormatter={(value) => {
-                      return value.length > 8
-                        ? `${value.substring(0, 8)}...`
-                        : value;
-                    }}
+                    tickFormatter={(value) =>
+                      value.length > 8 ? `${value.substring(0, 8)}...` : value
+                    }
                   />
                   <XAxis dataKey="stock" type="number" hide />
                   <ChartTooltip
@@ -596,16 +628,14 @@ export function DashboardCharts() {
               </ChartContainer>
             </div>
           </CardContent>
+
           <CardFooter className="flex-col items-start gap-2 text-sm pt-0">
             <div className="flex gap-2 leading-none font-medium">
               <TrendingUp className="h-4 w-4" />
               Stock levels optimized
             </div>
             <div className="text-muted-foreground leading-none">
-              Total items:{" "}
-              {stockData
-                .reduce((acc: number, curr: any) => acc + curr.stock, 0)
-                .toLocaleString()}
+              Total items: {formatNumber(totalStock)}
             </div>
           </CardFooter>
         </Card>
@@ -621,6 +651,7 @@ export function DashboardCharts() {
               Current order distribution by status
             </CardDescription>
           </CardHeader>
+
           <CardContent className="flex-1 pb-0">
             <ChartContainer
               config={orderChartConfig}
@@ -654,7 +685,7 @@ export function DashboardCharts() {
                               y={viewBox.cy}
                               className="fill-foreground text-2xl font-bold"
                             >
-                              {totalOrders.toLocaleString()}
+                              {formatNumber(totalOrders)}
                             </tspan>
                             <tspan
                               x={viewBox.cx}
@@ -672,6 +703,7 @@ export function DashboardCharts() {
               </PieChart>
             </ChartContainer>
           </CardContent>
+
           <CardFooter className="flex-col gap-2 text-sm">
             <div className="text-muted-foreground leading-none">
               Real-time order status tracking

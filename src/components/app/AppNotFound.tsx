@@ -1,6 +1,5 @@
 "use client";
 
-import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -9,9 +8,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Home, ArrowLeft, Search } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { ArrowLeft, Home } from "lucide-react";
 
-export function AppNotFound() {
+export function AppNotFound({ buttons = true }: { buttons?: boolean }) {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br dark:bg-accent bg-white">
       <Card className="w-full max-w-md text-center">
@@ -27,28 +27,30 @@ export function AppNotFound() {
             been moved, deleted, or you entered the wrong URL.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Button
-              asChild
-              variant="default"
-              className="flex items-center gap-2"
-            >
-              <Link to="/">
-                <Home className="w-4 h-4" />
-                Go Home
-              </Link>
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => window.history.back()}
-              className="flex items-center gap-2"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Go Back
-            </Button>
-          </div>
-        </CardContent>
+        {buttons && (
+          <CardContent className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Button
+                asChild
+                variant="default"
+                className="flex items-center gap-2"
+              >
+                <Link to="/dashboard">
+                  <Home className="w-4 h-4" />
+                  Go Home
+                </Link>
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => window.history.back()}
+                className="flex items-center gap-2"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Go Back
+              </Button>
+            </div>
+          </CardContent>
+        )}
       </Card>
     </div>
   );

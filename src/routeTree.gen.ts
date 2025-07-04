@@ -8,16 +8,23 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
+import { createFileRoute } from '@tanstack/react-router'
+
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteRouteImport } from './routes/dashboard/route'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
+import { Route as CatalogIndexRouteImport } from './routes/catalog/index'
 import { Route as DashboardProductIndexRouteImport } from './routes/dashboard/product/index'
 import { Route as DashboardOrderIndexRouteImport } from './routes/dashboard/order/index'
 import { Route as DashboardClientIndexRouteImport } from './routes/dashboard/client/index'
 import { Route as DashboardCategoryIndexRouteImport } from './routes/dashboard/category/index'
 import { Route as DashboardCatalogIndexRouteImport } from './routes/dashboard/catalog/index'
 import { Route as DashboardCampaignIndexRouteImport } from './routes/dashboard/campaign/index'
+import { Route as CatalogCampaign_id_layoutRouteImport } from './routes/catalog/$campaign_id/__layout'
+import { Route as CatalogCampaign_id_layoutIndexRouteImport } from './routes/catalog/$campaign_id/__layout.index'
+
+const CatalogCampaign_idRouteImport = createFileRoute('/catalog/$campaign_id')()
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -29,10 +36,20 @@ const DashboardRouteRoute = DashboardRouteRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CatalogCampaign_idRoute = CatalogCampaign_idRouteImport.update({
+  id: '/catalog/$campaign_id',
+  path: '/catalog/$campaign_id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => DashboardRouteRoute,
+} as any)
+const CatalogIndexRoute = CatalogIndexRouteImport.update({
+  id: '/catalog/',
+  path: '/catalog/',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardProductIndexRoute = DashboardProductIndexRouteImport.update({
   id: '/product/',
@@ -64,21 +81,37 @@ const DashboardCampaignIndexRoute = DashboardCampaignIndexRouteImport.update({
   path: '/campaign/',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
+const CatalogCampaign_id_layoutRoute =
+  CatalogCampaign_id_layoutRouteImport.update({
+    id: '/__layout',
+    getParentRoute: () => CatalogCampaign_idRoute,
+  } as any)
+const CatalogCampaign_id_layoutIndexRoute =
+  CatalogCampaign_id_layoutIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => CatalogCampaign_id_layoutRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRouteRouteWithChildren
   '/login': typeof LoginRoute
+  '/catalog': typeof CatalogIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
+  '/catalog/$campaign_id': typeof CatalogCampaign_id_layoutRouteWithChildren
   '/dashboard/campaign': typeof DashboardCampaignIndexRoute
   '/dashboard/catalog': typeof DashboardCatalogIndexRoute
   '/dashboard/category': typeof DashboardCategoryIndexRoute
   '/dashboard/client': typeof DashboardClientIndexRoute
   '/dashboard/order': typeof DashboardOrderIndexRoute
   '/dashboard/product': typeof DashboardProductIndexRoute
+  '/catalog/$campaign_id/': typeof CatalogCampaign_id_layoutIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/catalog': typeof CatalogIndexRoute
   '/dashboard': typeof DashboardIndexRoute
+  '/catalog/$campaign_id': typeof CatalogCampaign_id_layoutIndexRoute
   '/dashboard/campaign': typeof DashboardCampaignIndexRoute
   '/dashboard/catalog': typeof DashboardCatalogIndexRoute
   '/dashboard/category': typeof DashboardCategoryIndexRoute
@@ -90,30 +123,39 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/dashboard': typeof DashboardRouteRouteWithChildren
   '/login': typeof LoginRoute
+  '/catalog/': typeof CatalogIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
+  '/catalog/$campaign_id': typeof CatalogCampaign_idRouteWithChildren
+  '/catalog/$campaign_id/__layout': typeof CatalogCampaign_id_layoutRouteWithChildren
   '/dashboard/campaign/': typeof DashboardCampaignIndexRoute
   '/dashboard/catalog/': typeof DashboardCatalogIndexRoute
   '/dashboard/category/': typeof DashboardCategoryIndexRoute
   '/dashboard/client/': typeof DashboardClientIndexRoute
   '/dashboard/order/': typeof DashboardOrderIndexRoute
   '/dashboard/product/': typeof DashboardProductIndexRoute
+  '/catalog/$campaign_id/__layout/': typeof CatalogCampaign_id_layoutIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/dashboard'
     | '/login'
+    | '/catalog'
     | '/dashboard/'
+    | '/catalog/$campaign_id'
     | '/dashboard/campaign'
     | '/dashboard/catalog'
     | '/dashboard/category'
     | '/dashboard/client'
     | '/dashboard/order'
     | '/dashboard/product'
+    | '/catalog/$campaign_id/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/catalog'
     | '/dashboard'
+    | '/catalog/$campaign_id'
     | '/dashboard/campaign'
     | '/dashboard/catalog'
     | '/dashboard/category'
@@ -124,18 +166,24 @@ export interface FileRouteTypes {
     | '__root__'
     | '/dashboard'
     | '/login'
+    | '/catalog/'
     | '/dashboard/'
+    | '/catalog/$campaign_id'
+    | '/catalog/$campaign_id/__layout'
     | '/dashboard/campaign/'
     | '/dashboard/catalog/'
     | '/dashboard/category/'
     | '/dashboard/client/'
     | '/dashboard/order/'
     | '/dashboard/product/'
+    | '/catalog/$campaign_id/__layout/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   DashboardRouteRoute: typeof DashboardRouteRouteWithChildren
   LoginRoute: typeof LoginRoute
+  CatalogIndexRoute: typeof CatalogIndexRoute
+  CatalogCampaign_idRoute: typeof CatalogCampaign_idRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -154,12 +202,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/catalog/$campaign_id': {
+      id: '/catalog/$campaign_id'
+      path: '/catalog/$campaign_id'
+      fullPath: '/catalog/$campaign_id'
+      preLoaderRoute: typeof CatalogCampaign_idRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard/': {
       id: '/dashboard/'
       path: '/'
       fullPath: '/dashboard/'
       preLoaderRoute: typeof DashboardIndexRouteImport
       parentRoute: typeof DashboardRouteRoute
+    }
+    '/catalog/': {
+      id: '/catalog/'
+      path: '/catalog'
+      fullPath: '/catalog'
+      preLoaderRoute: typeof CatalogIndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/dashboard/product/': {
       id: '/dashboard/product/'
@@ -203,6 +265,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardCampaignIndexRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
+    '/catalog/$campaign_id/__layout': {
+      id: '/catalog/$campaign_id/__layout'
+      path: '/catalog/$campaign_id'
+      fullPath: '/catalog/$campaign_id'
+      preLoaderRoute: typeof CatalogCampaign_id_layoutRouteImport
+      parentRoute: typeof CatalogCampaign_idRoute
+    }
+    '/catalog/$campaign_id/__layout/': {
+      id: '/catalog/$campaign_id/__layout/'
+      path: '/'
+      fullPath: '/catalog/$campaign_id/'
+      preLoaderRoute: typeof CatalogCampaign_id_layoutIndexRouteImport
+      parentRoute: typeof CatalogCampaign_id_layoutRoute
+    }
   }
 }
 
@@ -230,9 +306,36 @@ const DashboardRouteRouteWithChildren = DashboardRouteRoute._addFileChildren(
   DashboardRouteRouteChildren,
 )
 
+interface CatalogCampaign_id_layoutRouteChildren {
+  CatalogCampaign_id_layoutIndexRoute: typeof CatalogCampaign_id_layoutIndexRoute
+}
+
+const CatalogCampaign_id_layoutRouteChildren: CatalogCampaign_id_layoutRouteChildren =
+  {
+    CatalogCampaign_id_layoutIndexRoute: CatalogCampaign_id_layoutIndexRoute,
+  }
+
+const CatalogCampaign_id_layoutRouteWithChildren =
+  CatalogCampaign_id_layoutRoute._addFileChildren(
+    CatalogCampaign_id_layoutRouteChildren,
+  )
+
+interface CatalogCampaign_idRouteChildren {
+  CatalogCampaign_id_layoutRoute: typeof CatalogCampaign_id_layoutRouteWithChildren
+}
+
+const CatalogCampaign_idRouteChildren: CatalogCampaign_idRouteChildren = {
+  CatalogCampaign_id_layoutRoute: CatalogCampaign_id_layoutRouteWithChildren,
+}
+
+const CatalogCampaign_idRouteWithChildren =
+  CatalogCampaign_idRoute._addFileChildren(CatalogCampaign_idRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   DashboardRouteRoute: DashboardRouteRouteWithChildren,
   LoginRoute: LoginRoute,
+  CatalogIndexRoute: CatalogIndexRoute,
+  CatalogCampaign_idRoute: CatalogCampaign_idRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

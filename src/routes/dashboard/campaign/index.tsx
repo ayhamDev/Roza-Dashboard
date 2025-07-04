@@ -10,6 +10,7 @@ import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { useBreadcrumbs } from "@/context/breadcrumpst";
 import { useSheet } from "@/context/sheets";
 import { useTable } from "@/hooks/use-table";
+import type { Database } from "@/interface/database.types";
 import type { IPaginationResponse } from "@/interface/PaginationProps.interface";
 import type { RowActionItem } from "@/interface/RowAction.interface";
 import {
@@ -44,24 +45,7 @@ export const Route = createFileRoute("/dashboard/campaign/")({
   component: RouteComponent,
 });
 
-interface CampaignRow {
-  id: number;
-  campaign_id: string;
-  name: string;
-  description: string | null;
-  catalog_id: number;
-  delivery_method: "email" | "whatsapp" | "both";
-  subject: string;
-  message: string;
-  status: "draft" | "active" | "completed" | "cancelled";
-  total_recipients: number;
-  created_at: string;
-  updated_at: string;
-  catalog: {
-    catalog_id: number;
-    name: string;
-  };
-}
+type CampaignRow = Database["public"]["Tables"]["campaign"]["Row"];
 
 function RouteComponent() {
   const { setBreadcrumbs } = useBreadcrumbs();
@@ -102,7 +86,7 @@ function RouteComponent() {
               className="font-medium text-sm font-mono"
             >
               <Hash className="h-3 w-3" />
-              <span className="select-all">{id.slice(-8)}</span>
+              <span className="select-all">{id}</span>
             </Badge>
           );
         },
@@ -154,17 +138,17 @@ function RouteComponent() {
           return (
             <Badge
               variant={
-                status === "active"
+                status === "Active"
                   ? "default"
-                  : status === "completed"
+                  : status === "Completed"
                     ? "secondary"
-                    : status === "cancelled"
+                    : status === "Cancelled"
                       ? "destructive"
                       : "outline"
               }
               className="text-xs font-medium"
             >
-              {status.toUpperCase()}
+              {status?.toUpperCase() || "DRAFT"}
             </Badge>
           );
         },
@@ -179,18 +163,18 @@ function RouteComponent() {
           />
         ),
         cell: ({ row }) => {
-          const catalog = (row.original as CampaignRow)?.catalog;
+          const catalog = (row.original as any)?.catalog;
           return (
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
-                className="font-medium text-sm cursor-pointer select-none max-w-[150px] truncate bg-transparent"
+                className="font-medium text-sm cursor-pointer select-none max-w-[160px] truncate bg-transparent"
                 title="Open Catalog"
                 onClick={() => {
-                  openSheet("catalog:view", { id: catalog.catalog_id });
+                  openSheet("catalog:view", { id: catalog?.catalog_id });
                 }}
               >
-                <span className="truncate max-w-[120px]">{catalog?.name}</span>
+                <span className="truncate max-w-[130px]">{catalog?.name}</span>
                 <ExternalLink className="h-3 w-3 ml-1" />
               </Button>
             </div>
@@ -203,39 +187,37 @@ function RouteComponent() {
           <DataTableColumnHeader
             icon={Send}
             column={column}
-            title="Delivery Method"
+            title="Delivery Methods"
           />
         ),
         cell: ({ row }) => {
-          const method = row.getValue("delivery_method") as
-            | "email"
-            | "whatsapp"
-            | "both";
+          const methods = row.getValue(
+            "delivery_method"
+          ) as Database["public"]["Enums"]["campaign_method"][];
+
+          if (!methods || methods.length === 0) {
+            return <span className="text-muted-foreground text-xs">None</span>;
+          }
+
           return (
-            <div className="flex items-center gap-1">
-              {method === "email" && (
+            <div className="flex items-center gap-1 flex-wrap">
+              {methods.includes("email") && (
                 <Badge variant="outline" className="text-xs">
                   <Mail className="h-3 w-3 mr-1" />
                   Email
                 </Badge>
               )}
-              {method === "whatsapp" && (
+              {methods.includes("sms") && (
                 <Badge variant="outline" className="text-xs">
                   <MessageSquare className="h-3 w-3 mr-1" />
-                  WhatsApp
+                  SMS
                 </Badge>
               )}
-              {method === "both" && (
-                <>
-                  <Badge variant="outline" className="text-xs">
-                    <Mail className="h-3 w-3 mr-1" />
-                    Email
-                  </Badge>
-                  <Badge variant="outline" className="text-xs">
-                    <MessageSquare className="h-3 w-3 mr-1" />
-                    WhatsApp
-                  </Badge>
-                </>
+              {methods.includes("whatsapp") && (
+                <Badge variant="outline" className="text-xs">
+                  <Send className="h-3 w-3 mr-1" />
+                  WhatsApp
+                </Badge>
               )}
             </div>
           );
@@ -255,7 +237,7 @@ function RouteComponent() {
           return (
             <Badge variant="secondary" className="font-medium text-sm">
               <Users className="h-3 w-3 mr-1" />
-              {count}
+              {count || "All"}
             </Badge>
           );
         },
@@ -263,21 +245,12 @@ function RouteComponent() {
       {
         id: "actions",
         cell: ({ row }) => {
-          const actions: RowActionItem<CampaignRow>[] = [
+          const actions: RowActionItem<any>[] = [
             {
               icon: Eye,
               label: "View Campaign",
               action: (row) => {
                 return openSheet("campaign:view", {
-                  id: row.getValue("campaign_id") as string,
-                });
-              },
-            },
-            {
-              icon: BarChart3,
-              label: "View Dashboard",
-              action: (row) => {
-                return openSheet("campaign:dashboard", {
                   id: row.getValue("campaign_id") as string,
                 });
               },
@@ -291,6 +264,7 @@ function RouteComponent() {
                 });
               },
             },
+
             {
               isSeparator: true,
             },
@@ -318,6 +292,8 @@ function RouteComponent() {
         ),
         cell: ({ row }) => {
           const ts = row.getValue("created_at") as string;
+          if (!ts) return <span className="text-muted-foreground">-</span>;
+
           const date = parseISO(ts);
           return (
             <div className="flex items-center gap-2">
@@ -340,6 +316,8 @@ function RouteComponent() {
         ),
         cell: ({ row }) => {
           const ts = row.getValue("updated_at") as string;
+          if (!ts) return <span className="text-muted-foreground">-</span>;
+
           const date = parseISO(ts);
           return (
             <div className="flex items-center gap-2">
@@ -387,24 +365,23 @@ function RouteComponent() {
       // Search functionality
       if (searchParams.search) {
         // Search by campaign ID or name
-        if (searchParams.search.startsWith("camp_")) {
-          QueryBuilder.ilike("campaign_id", `%${searchParams.search}%`);
-        } else {
-          QueryBuilder.ilike("name", `%${searchParams.search}%`);
-        }
+        QueryBuilder.or(
+          `campaign_id.ilike.%${searchParams.search}%,name.ilike.%${searchParams.search}%`
+        );
       }
 
       // Status filter
       if (searchParams.filter?.["filter[status]"]) {
         const statuses = searchParams.filter["filter[status]"]?.split(",");
-        QueryBuilder.in("status", statuses);
+        QueryBuilder.in("status", statuses as any);
       }
 
-      // Delivery method filter
+      // Delivery method filter - updated to handle array
       if (searchParams.filter?.["filter[delivery_method]"]) {
         const methods =
           searchParams.filter["filter[delivery_method]"]?.split(",");
-        QueryBuilder.in("delivery_method", methods);
+        // Use overlaps operator for array filtering
+        QueryBuilder.overlaps("delivery_method", methods);
       }
 
       // Sorting
@@ -421,11 +398,7 @@ function RouteComponent() {
 
       if (error) throw error;
 
-      return buildPaginationResponse(
-        data as CampaignRow[],
-        searchParams,
-        count
-      );
+      return buildPaginationResponse(data, searchParams, count);
     },
   });
 

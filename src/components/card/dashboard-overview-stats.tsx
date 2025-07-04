@@ -326,7 +326,7 @@ export function DashboardOverviewStats() {
       title: "Pending Orders",
       value: stats?.pendingOrders || 0,
       icon: ShoppingCart,
-      description: "Orders awaiting processing",
+      description: "Orders awaiting processing (7 days)",
       color: "text-amber-600 dark:text-amber-400",
       bgColor: "bg-amber-50 dark:bg-amber-950/50",
       isAlert: true,

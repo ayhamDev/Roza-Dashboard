@@ -11,6 +11,7 @@ import {
   Users,
 } from "lucide-react";
 import * as React from "react";
+import logo from "@/assets/Rozalogo.svg";
 
 import {
   Sidebar,
@@ -45,9 +46,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
         {state == "expanded" && (
-          <h1 className="scroll-m-20 text-center text-xl py-4 font-extrabold tracking-tight text-balance">
-            Roza Dashboard
-          </h1>
+          <img
+            src={logo}
+            alt=""
+            className="w-[150px] m-auto py-4 select-none "
+          />
         )}
         {/* Add your logo or button content here */}
       </SidebarHeader>

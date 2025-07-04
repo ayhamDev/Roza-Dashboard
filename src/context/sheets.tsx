@@ -23,6 +23,9 @@ import CreateCatalogSheet from "@/components/sheets/catalog/Create";
 import ViewOrderSheet from "@/components/sheets/order/View";
 import UpdateOrderSheet from "@/components/sheets/order/Update";
 import CreateOrderSheet from "@/components/sheets/order/Create";
+import CreateCampaignSheet from "@/components/sheets/campaign/Create";
+import UpdateCampaignSheet from "@/components/sheets/campaign/Update";
+import ViewCampaignSheet from "@/components/sheets/campaign/View";
 
 export type Sheets =
   | "client:create"
@@ -39,7 +42,10 @@ export type Sheets =
   | "catalog:view"
   | "order:create"
   | "order:update"
-  | "order:view";
+  | "order:view"
+  | "campaign:create"
+  | "campaign:update"
+  | "campaign:view";
 
 const sheetComponents: Record<Sheets, React.ComponentType<any>> = {
   // Client
@@ -64,6 +70,11 @@ const sheetComponents: Record<Sheets, React.ComponentType<any>> = {
   "order:create": CreateOrderSheet,
   "order:update": UpdateOrderSheet,
   "order:view": ViewOrderSheet,
+
+  // campaign
+  "campaign:create": CreateCampaignSheet,
+  "campaign:update": UpdateCampaignSheet,
+  "campaign:view": ViewCampaignSheet,
 };
 
 interface SheetState {

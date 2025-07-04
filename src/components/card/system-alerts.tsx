@@ -17,7 +17,6 @@ import {
   Clock,
   Edit,
   Package,
-  RefreshCw,
   TrendingDown,
   TrendingUp,
   XCircle,
@@ -269,16 +268,6 @@ export function SystemAlerts() {
               </div>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              // Refetch all queries
-              window.location.reload();
-            }}
-          >
-            <RefreshCw className="h-4 w-4" />
-          </Button>
         </div>
       </CardHeader>
       <CardContent className="p-0">
