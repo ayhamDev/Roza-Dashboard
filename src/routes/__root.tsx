@@ -22,9 +22,7 @@ function RootComponent() {
   return (
     <NuqsAdapter>
       <QueryClientProvider client={queryClient}>
-        <SheetProvider>
-          <Outlet />
-        </SheetProvider>
+        <Outlet />
         <Toaster position="top-center" />
         <ReactQueryDevtools
           initialIsOpen={false}
