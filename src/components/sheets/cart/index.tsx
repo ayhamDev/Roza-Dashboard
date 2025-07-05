@@ -4,16 +4,7 @@ import React from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Form,
   FormControl,
@@ -22,6 +13,8 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -29,32 +22,38 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { CardHeader, CardTitle } from "@/components/ui/card";
 import { useCart } from "@/context/cart";
+import type { Database } from "@/interface/database.types";
+import { getImageUrl } from "@/lib/GetImageUrl";
 import { supabase } from "@/supabase";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import * as z from "zod";
 import {
   CreditCard,
-  Mail,
+  Loader2,
+  MapPin,
   Minus,
   Package,
   Phone,
   Plus,
   ShoppingCart,
   Trash2,
-  X,
-  User,
   Truck,
-  Loader2,
-  MapPin,
+  User,
+  X,
 } from "lucide-react";
 import { useState } from "react";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import type { Database } from "@/interface/database.types";
-import { getImageUrl } from "@/lib/GetImageUrl";
+import * as z from "zod";
 
 const formSchema = z.object({
   shipping_option: z.enum(["default", "custom"], {

@@ -22,8 +22,10 @@ import {
   XCircle,
 } from "lucide-react";
 
+// @ts-ignore
 type OrderStatus = Database["public"]["Enums"]["order_status"];
 
+// @ts-ignore
 interface AlertData {
   lowStockCount: number;
   lowStockItems: Array<{ name: string; stock: number; id: number }>;

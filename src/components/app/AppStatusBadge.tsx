@@ -59,11 +59,7 @@ export const statusConfig = {
   },
 };
 
-export function AppStatusBadge({
-  status,
-  border = true,
-  className,
-}: StatusBadgeProps) {
+export function AppStatusBadge({ status, className }: StatusBadgeProps) {
   const config = statusConfig[status] || {
     icon: AlertCircle,
     label: status,

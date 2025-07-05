@@ -580,6 +580,7 @@ const CreateOrderSheet = (props: CreateOrderSheetProps) => {
       // Create order items
       const orderTransactions = await Promise.all(
         orderItems.map(async (item) => {
+          // @ts-ignore
           const { data: transition } = await supabase
             .from("catalog_transitions")
             .select("catalog_transition_id")

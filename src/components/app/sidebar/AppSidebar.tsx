@@ -1,17 +1,16 @@
 "use client";
 
+import logo from "@/assets/Rozalogo.svg";
 import {
   BookOpen,
   LayoutDashboard,
   Megaphone,
   Package,
   ShoppingCart,
-  Speaker,
   Tags,
   Users,
 } from "lucide-react";
 import * as React from "react";
-import logo from "@/assets/Rozalogo.svg";
 
 import {
   Sidebar,

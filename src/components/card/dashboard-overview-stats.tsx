@@ -220,7 +220,6 @@ export function DashboardOverviewStats() {
 
   const TrendIndicator = ({
     trend,
-    isMonetary = false,
   }: {
     trend: { percentage: number };
     isMonetary?: boolean;

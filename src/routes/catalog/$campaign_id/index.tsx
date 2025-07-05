@@ -1,25 +1,29 @@
 "use client";
-import { createFileRoute } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useQueryStates, parseAsString, parseAsInteger } from "nuqs";
-import {
-  Search,
-  Filter,
-  ShoppingCart,
-  Mail,
-  Phone,
-  MapPin,
-  Facebook,
-  Twitter,
-  Instagram,
-  Linkedin,
-  AlertCircle,
-} from "lucide-react";
+import logo from "@/assets/Rozalogo.svg";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import logo from "@/assets/Rozalogo.svg";
+import { useQuery } from "@tanstack/react-query";
+import { createFileRoute } from "@tanstack/react-router";
+import {
+  AlertCircle,
+  Facebook,
+  Filter,
+  Instagram,
+  Linkedin,
+  Mail,
+  MapPin,
+  Phone,
+  Search,
+  ShoppingCart,
+  Twitter,
+} from "lucide-react";
+import { parseAsInteger, parseAsString, useQueryStates } from "nuqs";
+import { useEffect, useState } from "react";
 
+import { AppThemeToggle } from "@/components/app/AppThemeToggle";
+import { CartSheet } from "@/components/sheets/cart";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -27,7 +31,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   Pagination,
   PaginationContent,
@@ -45,13 +48,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { supabase } from "@/supabase";
-import { useDebounce } from "@/hooks/use-debounce";
 import { useCart } from "@/context/cart";
-import { CartSheet } from "@/components/sheets/cart";
-import { AppThemeToggle } from "@/components/app/AppThemeToggle";
+import { useDebounce } from "@/hooks/use-debounce";
 import { getImageUrl } from "@/lib/GetImageUrl";
+import { supabase } from "@/supabase";
 
 export const Route = createFileRoute("/catalog/$campaign_id/")({
   component: RouteComponent,
@@ -166,7 +166,7 @@ function CatalogContent() {
   // Debounce search term for server-side filtering
   const [debouncedSearch] = useDebounce(urlState.search, 300);
   const [scrollY, setScrollY] = useState(0);
-  const { addItem, totalItems, items, isInCart, getItemQuantity } = useCart();
+  const { addItem, items, isInCart, getItemQuantity } = useCart();
   const [isCartOpen, setIsCartOpen] = useState(false);
 
   // Query campaign recipient data first (if recipient ID is provided)

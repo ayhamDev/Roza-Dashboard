@@ -1,14 +1,14 @@
-import { useState } from "react";
 import { copyToClipboard } from "@/lib/copyToClipboard";
-import { Button } from "../ui/button";
-import { Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Check, Copy } from "lucide-react";
+import { useState } from "react";
+import { Button } from "../ui/button";
 
 const AppCopyButton = ({ text }: { text: string }) => {
   const [copied, setCopied] = useState(false);
 
   const handleClick = () => {
-    copyToClipboard(text, "N/A");
+    copyToClipboard(text);
     setCopied(true);
     setTimeout(() => {
       setCopied(false);

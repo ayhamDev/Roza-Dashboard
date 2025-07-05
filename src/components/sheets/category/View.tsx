@@ -105,6 +105,7 @@ const ViewCategorySheet = (props: ViewCategorySheetProps) => {
   });
 
   // Enhanced DisplayField component with icons and better styling
+  //@ts-ignore
   const DisplayField = ({
     label,
     value,

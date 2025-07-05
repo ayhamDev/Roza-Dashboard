@@ -35,7 +35,6 @@ import {
   User,
 } from "lucide-react";
 import { useLayoutEffect, useMemo } from "react";
-import { id } from "zod/v4/locales";
 
 export const Route = createFileRoute("/dashboard/order/")({
   component: RouteComponent,

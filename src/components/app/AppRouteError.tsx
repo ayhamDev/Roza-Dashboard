@@ -24,7 +24,7 @@ const AppRouteError: React.FC<RouterErrorComponentProps> = ({
   const router = useRouter();
 
   const handleGoHome = () => {
-    router.navigate({ to: "/" });
+    router.navigate({ to: "/dashboard" });
   };
 
   const handleGoBack = () => {

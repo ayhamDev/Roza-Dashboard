@@ -1,21 +1,16 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSheet } from "@/context/sheets";
 import {
-  Plus,
-  Users,
+  BookOpen,
   Package,
+  Plus,
+  Send,
   ShoppingCart,
   Tag,
-  BookOpen,
-  Send,
-  BarChart3,
-  FileText,
-  Settings,
-  Download,
-  Upload,
+  Users,
 } from "lucide-react";
 
 export function QuickActionsPanel() {
@@ -66,36 +61,36 @@ export function QuickActionsPanel() {
     },
   ];
 
-  const utilityActions = [
-    {
-      title: "Export Data",
-      description: "Download reports",
-      icon: Download,
-      action: () => console.log("Export data"),
-      color: "bg-gray-50 hover:bg-gray-100 text-gray-700",
-    },
-    {
-      title: "Import Data",
-      description: "Bulk import items",
-      icon: Upload,
-      action: () => console.log("Import data"),
-      color: "bg-gray-50 hover:bg-gray-100 text-gray-700",
-    },
-    {
-      title: "Analytics",
-      description: "View detailed reports",
-      icon: BarChart3,
-      action: () => console.log("Open analytics"),
-      color: "bg-emerald-50 hover:bg-emerald-100 text-emerald-700",
-    },
-    {
-      title: "Settings",
-      description: "System configuration",
-      icon: Settings,
-      action: () => console.log("Open settings"),
-      color: "bg-gray-50 hover:bg-gray-100 text-gray-700",
-    },
-  ];
+  // const utilityActions = [
+  //   {
+  //     title: "Export Data",
+  //     description: "Download reports",
+  //     icon: Download,
+  //     action: () => console.log("Export data"),
+  //     color: "bg-gray-50 hover:bg-gray-100 text-gray-700",
+  //   },
+  //   {
+  //     title: "Import Data",
+  //     description: "Bulk import items",
+  //     icon: Upload,
+  //     action: () => console.log("Import data"),
+  //     color: "bg-gray-50 hover:bg-gray-100 text-gray-700",
+  //   },
+  //   {
+  //     title: "Analytics",
+  //     description: "View detailed reports",
+  //     icon: BarChart3,
+  //     action: () => console.log("Open analytics"),
+  //     color: "bg-emerald-50 hover:bg-emerald-100 text-emerald-700",
+  //   },
+  //   {
+  //     title: "Settings",
+  //     description: "System configuration",
+  //     icon: Settings,
+  //     action: () => console.log("Open settings"),
+  //     color: "bg-gray-50 hover:bg-gray-100 text-gray-700",
+  //   },
+  // ];
 
   return (
     <div className="space-y-6">

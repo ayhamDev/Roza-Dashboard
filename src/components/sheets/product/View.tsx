@@ -278,7 +278,7 @@ const ViewProductSheet = (props: ViewProductSheetProps) => {
                         }}
                       >
                         <span className="truncate max-w-[200px]">
-                          {product.item_category.name}
+                          {product?.item_category?.name}
                         </span>
                         <ExternalLink className="h-3 w-3 ml-1" />
                       </Button>

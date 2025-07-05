@@ -335,6 +335,7 @@ const UpdateCatalogSheet = (props: UpdateCatalogSheetProps) => {
           if (addFailures.length > 0) {
             console.error("Some product additions failed:", addFailures);
             errors.push(
+              // @ts-ignore
               ...addFailures.map((failure, index) => ({
                 productId: productChanges.added[index]?.item_id,
                 error: "Failed to add product to catalog",

@@ -23,6 +23,8 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 import {
+  Activity,
+  BookOpen,
   Calendar,
   Delete,
   Edit,
@@ -35,9 +37,6 @@ import {
   Send,
   Target,
   Users,
-  BookOpen,
-  BarChart3,
-  Activity,
 } from "lucide-react";
 import { useLayoutEffect, useMemo } from "react";
 

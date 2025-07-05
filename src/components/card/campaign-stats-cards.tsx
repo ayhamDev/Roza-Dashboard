@@ -28,26 +28,26 @@ export function CampaignStatsCards() {
 
       const total_campaigns = campaigns.length;
       const active_campaigns = campaigns.filter(
-        (c) => c.status === "active"
+        (c) => c.status === "Active"
       ).length;
       const completed_campaigns = campaigns.filter(
-        (c) => c.status === "completed"
+        (c) => c.status === "Completed"
       ).length;
       const draft_campaigns = campaigns.filter(
-        (c) => c.status === "draft"
+        (c) => c.status === "Draft"
       ).length;
       const total_recipients = campaigns.reduce(
         (sum, c) => sum + (c.total_recipients || 0),
         0
       );
-      const email_campaigns = campaigns.filter(
-        (c) => c.delivery_method === "email"
+      const email_campaigns = campaigns.filter((c) =>
+        c.delivery_method.includes("email")
       ).length;
-      const whatsapp_campaigns = campaigns.filter(
-        (c) => c.delivery_method === "whatsapp"
+      const whatsapp_campaigns = campaigns.filter((c) =>
+        c.delivery_method.includes("whatsapp")
       ).length;
-      const both_campaigns = campaigns.filter(
-        (c) => c.delivery_method === "both"
+      const both_campaigns = campaigns.filter((c) =>
+        c.delivery_method.includes("sms")
       ).length;
 
       return {

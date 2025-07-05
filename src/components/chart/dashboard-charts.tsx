@@ -47,6 +47,7 @@ type OrderStatus = Database["public"]["Enums"]["order_status"];
 type ActiveChart = "revenue" | "orders" | "customers";
 
 // International formatting utilities
+// @ts-ignore
 const formatCurrency = (amount: number, locale = "en-US", currency = "USD") => {
   return new Intl.NumberFormat(locale, {
     style: "currency",

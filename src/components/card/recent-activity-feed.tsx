@@ -48,6 +48,7 @@ interface ActivityItem {
   };
 }
 
+// @ts-ignore
 function getActivityIcon(type: string, isUpdate?: boolean) {
   const iconClass = "h-4 w-4";
 
@@ -376,7 +377,7 @@ export function RecentActivityFeed() {
             </div>
           ) : (
             <div className="divide-y divide-border">
-              {activities.map((activity, index) => (
+              {activities.map((activity) => (
                 <div
                   onClick={() => {
                     openSheet(`${activity.type}:view` as Sheets, {

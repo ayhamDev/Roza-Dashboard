@@ -13,7 +13,6 @@ export const Route = createFileRoute("/catalog/$campaign_id")({
 });
 
 function RouteComponent() {
-  const { campaign_id } = Route.useParams();
   return (
     <ThemeProvider defaultTheme="light" key={"catalog"} storageKey="catalog">
       <CartProvider campaign_id="campaign_id">
