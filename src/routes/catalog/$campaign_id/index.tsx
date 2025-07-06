@@ -9,6 +9,7 @@ import {
   AlertCircle,
   Facebook,
   Filter,
+  Hash,
   Instagram,
   Linkedin,
   Mail,
@@ -704,6 +705,12 @@ function CatalogContent() {
                 key={item.item_id}
                 className="hover:shadow-lg pt-0 transition-all duration-300 hover:-translate-y-1 overflow-hidden relative"
               >
+                <div className="absolute top-[-3px]  left-[-3px] z-20">
+                  <Badge variant={"default"} className="rounded-none">
+                    <Hash size={20} />
+                    {item.item_id}
+                  </Badge>
+                </div>
                 <div className="relative">
                   <CardHeader className="p-0 relative group/image">
                     <div className="aspect-square overflow-hidden rounded-t-lg relative">
