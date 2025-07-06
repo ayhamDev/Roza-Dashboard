@@ -1,4 +1,5 @@
 "use client";
+
 import logo from "@/assets/Rozalogo.svg";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,8 +19,7 @@ import {
   Twitter,
 } from "lucide-react";
 import { parseAsInteger, parseAsString, useQueryStates } from "nuqs";
-import { useEffect, useState } from "react";
-
+import { useEffect, useState, useCallback } from "react";
 import { AppThemeToggle } from "@/components/app/AppThemeToggle";
 import { CartSheet } from "@/components/sheets/cart";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
@@ -163,11 +164,30 @@ function CatalogContent() {
     sort: parseAsString.withDefault("name"),
   });
 
-  // Debounce search term for server-side filtering
-  const [debouncedSearch] = useDebounce(urlState.search, 300);
+  // Local search state for immediate UI feedback
+  const [localSearch, setLocalSearch] = useState(urlState.search);
+
+  // Debounce the local search term for server-side filtering
+  const debouncedSearch = useDebounce(localSearch, 300);
+
   const [scrollY, setScrollY] = useState(0);
   const { addItem, items, isInCart, getItemQuantity } = useCart();
   const [isCartOpen, setIsCartOpen] = useState(false);
+
+  // Sync local search with URL state on mount and URL changes
+  useEffect(() => {
+    setLocalSearch(urlState.search);
+  }, [urlState.search]);
+
+  // Handle search input changes
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      setLocalSearch(value);
+      // Update URL state for browser history (optional)
+      setUrlState({ search: value, page: 1 });
+    },
+    [setUrlState]
+  );
 
   // Query campaign recipient data first (if recipient ID is provided)
   const {
@@ -240,6 +260,7 @@ function CatalogContent() {
         .single();
 
       if (error) throw error;
+
       return data?.catalog as CatalogInfo;
     },
   });
@@ -254,11 +275,12 @@ function CatalogContent() {
         .order("name");
 
       if (error) throw error;
+
       return data;
     },
   });
 
-  // Query items with server-side filtering
+  // Query items with server-side filtering - now using debouncedSearch
   const {
     data: itemsData = { items: [], totalCount: 0 },
     isLoading: itemsLoading,
@@ -267,7 +289,7 @@ function CatalogContent() {
     queryKey: [
       "catalog-items",
       catalogInfo?.catalog_id,
-      debouncedSearch,
+      debouncedSearch, // Use debounced search instead of urlState.search
       urlState.category,
       urlState.sort,
       urlState.page,
@@ -305,7 +327,7 @@ function CatalogContent() {
         .eq("catalog_id", catalogInfo.catalog_id)
         .eq("item.is_catalog_visible", true);
 
-      // Apply search filter on server-side
+      // Apply search filter on server-side using debounced search
       if (debouncedSearch) {
         query = query.ilike("item.name", `%${debouncedSearch}%`);
       }
@@ -338,6 +360,7 @@ function CatalogContent() {
       query = query.range(from, to);
 
       const { data, error, count } = await query;
+
       if (error) throw error;
 
       // Transform the data
@@ -345,6 +368,7 @@ function CatalogContent() {
         .map((transition: any) => {
           const item = transition.item;
           if (!item) return null;
+
           return {
             ...item,
             category_name: item.item_category?.name || null,
@@ -371,7 +395,7 @@ function CatalogContent() {
     if (urlState.page > 1 && (debouncedSearch || urlState.category !== "all")) {
       setUrlState({ page: 1 });
     }
-  }, [debouncedSearch, urlState.category]);
+  }, [debouncedSearch, urlState.category, setUrlState, urlState.page]);
 
   // Calculate pagination
   const totalPages = Math.ceil(itemsData.totalCount / ITEMS_PER_PAGE);
@@ -464,7 +488,7 @@ function CatalogContent() {
               <p className="text-xs text-muted-foreground">Premium Products</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 print:hidden">
             <Button
               variant="outline"
               size="icon"
@@ -487,16 +511,18 @@ function CatalogContent() {
       </header>
 
       {/* Cart Sheet - Pass client data if available */}
-      <CartSheet
-        open={isCartOpen}
-        onOpenChange={setIsCartOpen}
-        client={campaignRecipient?.client || null}
-        recipientId={recipientId}
-        catalogInfo={catalogInfo as any}
-      />
+      <div className="print:hidden">
+        <CartSheet
+          open={isCartOpen}
+          onOpenChange={setIsCartOpen}
+          client={campaignRecipient?.client || null}
+          recipientId={recipientId}
+          catalogInfo={catalogInfo as any}
+        />
+      </div>
 
       {/* Enhanced Hero Section - 2 Column Layout */}
-      <section className="relative min-h-[50vh] mx-auto py-8 bg-gradient-to-br from-primary/10 via-primary/5 to-background pt-20 overflow-hidden">
+      <section className="relative dark:shadow-lg min-h-[50vh] mx-auto py-8 bg-gradient-to-br from-primary/10 via-primary/5 to-background pt-20 overflow-hidden">
         <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
         <div className="container px-4 md:px-6 relative z-10 h-full mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center min-h-[calc(50vh-5rem)]">
@@ -505,7 +531,7 @@ function CatalogContent() {
               <div className="text-center lg:text-left">
                 {/* Logo placeholder - replace with your actual logo */}
                 <img
-                  src={logo}
+                  src={logo || "/placeholder.svg"}
                   alt=""
                   className="w-[250px] m-auto py-4 select-none "
                 />
@@ -522,9 +548,8 @@ function CatalogContent() {
                 </div>
               </div>
             </div>
-
             {/* Right Column - Content */}
-            <div className="space-y-6">
+            <div className="space-y-6 ">
               {/* Show personalized greeting if recipient is available */}
               {campaignRecipient?.client && (
                 <div className="bg-primary/10 rounded-lg p-4 mb-6">
@@ -536,7 +561,6 @@ function CatalogContent() {
                   </p>
                 </div>
               )}
-
               <div className="space-y-4">
                 <h1 className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold tracking-wide bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
                   Discover Amazing Products
@@ -546,7 +570,6 @@ function CatalogContent() {
                   products. Quality, style, and value in every purchase.
                 </p>
               </div>
-
               {/* Enhanced Catalog and Promotion Info */}
               <div className="bg-card/80 backdrop-blur-sm rounded-xl p-6 border shadow-lg">
                 <div className="space-y-3">
@@ -589,14 +612,12 @@ function CatalogContent() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
               <Input
                 placeholder="Search products..."
-                value={urlState.search}
-                onChange={(e) =>
-                  setUrlState({ search: e.target.value, page: 1 })
-                }
+                value={localSearch}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-10 h-12"
               />
-              {/* Only show search loading indicator when search is different from debounced search */}
-              {urlState.search !== debouncedSearch && urlState.search && (
+              {/* Show search loading indicator when local search is different from debounced search */}
+              {localSearch !== debouncedSearch && localSearch && (
                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
                 </div>
@@ -644,7 +665,7 @@ function CatalogContent() {
               {debouncedSearch && ` for "${debouncedSearch}"`}
               {urlState.category !== "all" && ` in ${urlState.category}`}
             </span>
-            {/* Only show fetching indicator for background updates */}
+            {/* Show fetching indicator for background updates */}
             {itemsFetching && itemsData.items.length > 0 && (
               <span className="flex items-center gap-2 text-xs">
                 <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary"></div>
@@ -655,7 +676,7 @@ function CatalogContent() {
         </div>
 
         {/* Product Grid with Enhanced Hover Effects */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-8 min-h-[400px]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 mb-8 min-h-[400px]">
           {itemsData.items.length === 0 && !itemsLoading ? (
             <div className="col-span-full flex flex-col items-center justify-center py-12 text-center">
               <div className="text-6xl mb-4">🔍</div>
@@ -668,9 +689,10 @@ function CatalogContent() {
               {(debouncedSearch || urlState.category !== "all") && (
                 <Button
                   variant="outline"
-                  onClick={() =>
-                    setUrlState({ search: "", category: "all", page: 1 })
-                  }
+                  onClick={() => {
+                    setLocalSearch("");
+                    setUrlState({ search: "", category: "all", page: 1 });
+                  }}
                 >
                   Clear filters
                 </Button>
@@ -706,6 +728,7 @@ function CatalogContent() {
                         <CardTitle className="text-lg line-clamp-2">
                           {item.name}
                         </CardTitle>
+                        <CardDescription>{item.description}</CardDescription>
                         <div className="text-2xl font-bold text-primary">
                           ${item.retail_price}
                         </div>
@@ -873,7 +896,7 @@ function CatalogContent() {
             <p className="text-sm text-muted-foreground">
               © {new Date().getFullYear()} Roza. All rights reserved.
             </p>
-            <div className="flex space-x-6 text-sm">
+            {/* <div className="flex space-x-6 text-sm">
               <a
                 href="#"
                 className="text-muted-foreground hover:text-foreground transition-colors"
@@ -892,7 +915,7 @@ function CatalogContent() {
               >
                 Cookie Policy
               </a>
-            </div>
+            </div> */}
           </div>
         </div>
       </footer>
@@ -904,3 +927,5 @@ function CatalogContent() {
 function RouteComponent() {
   return <CatalogContent />;
 }
+
+export default RouteComponent;
