@@ -4,10 +4,14 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { BreadcrumbsProvider } from "@/context/breadcrumpst";
 import { SheetProvider } from "@/context/sheets";
 import { ThemeProvider } from "@/context/theme";
+import { adminGuard } from "@/lib/authGuard";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/dashboard")({
   component: DashboardLayout,
+  beforeLoad: async () => {
+    await adminGuard();
+  },
 });
 
 function DashboardLayout() {
