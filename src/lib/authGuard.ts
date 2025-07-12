@@ -14,3 +14,14 @@ export async function adminGuard() {
 
   return true;
 }
+export async function NoAuthGuard() {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (session) {
+    throw redirect({ to: "/dashboard" });
+  }
+
+  return true;
+}

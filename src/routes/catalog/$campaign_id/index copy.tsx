@@ -20,13 +20,7 @@ import {
   Twitter,
 } from "lucide-react";
 import { parseAsInteger, parseAsString, useQueryStates } from "nuqs";
-import {
-  useEffect,
-  useState,
-  useCallback,
-  useTransition,
-  useMemo,
-} from "react";
+import { useEffect, useState, useCallback } from "react";
 import { AppThemeToggle } from "@/components/app/AppThemeToggle";
 import { CartSheet } from "@/components/sheets/cart";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -59,22 +53,25 @@ import { Separator } from "@/components/ui/separator";
 import { useCart } from "@/context/cart";
 import { useDebounce } from "@/hooks/use-debounce";
 import { getImageUrl } from "@/lib/GetImageUrl";
+// Removed: import { supabase } from "@/supabase"; // No longer directly used here
 
-export const Route = createFileRoute("/catalog/$campaign_id/")({
+export const Route = createFileRoute("/catalog/$campaign_id/index copy")({
   component: RouteComponent,
 });
 
-// Interfaces to match Edge Function response
+// Updated interfaces to match database schema
 interface Item {
   item_id: number;
   name: string;
   description: string | null;
   image_url: string | null;
+  cost_price: number;
   retail_price: number;
   wholesale_price: number;
+  stock_quantity: number;
+  is_catalog_visible: boolean;
   category_id: number | null;
   category_name?: string;
-  in_stock: boolean;
 }
 
 interface ItemCategory {
@@ -83,14 +80,10 @@ interface ItemCategory {
   icon: string | null;
 }
 
-// --- FIX: Updated interface to match CartSheet prop requirements ---
 interface CatalogInfo {
   catalog_id: number;
   name: string;
-  status: "enabled" | "disabled" | "draft";
-  created_at: string;
-  updated_at: string;
-  theme_id: number | null;
+  status: string;
 }
 
 interface Client {
@@ -116,6 +109,7 @@ interface CampaignRecipient {
   client: Client;
 }
 
+// Interface for the data returned by the Edge Function
 interface EdgeFunctionResponse {
   campaignRecipient: CampaignRecipient | null;
   catalogInfo: CatalogInfo | null;
@@ -123,7 +117,6 @@ interface EdgeFunctionResponse {
   itemsData: { items: Item[]; totalCount: number };
 }
 
-// Consistent pagination with Edge Function
 const ITEMS_PER_PAGE = 10;
 
 // Custom hook to get URL parameters using Web API
@@ -131,7 +124,36 @@ function useURLParams() {
   const [params, setParams] = useState<URLSearchParams>(new URLSearchParams());
 
   useEffect(() => {
-    setParams(new URLSearchParams(window.location.search));
+    const updateParams = () => {
+      setParams(new URLSearchParams(window.location.search));
+    };
+
+    updateParams();
+
+    const handlePopState = () => {
+      updateParams();
+    };
+
+    window.addEventListener("popstate", handlePopState);
+
+    const originalPushState = history.pushState;
+    const originalReplaceState = history.replaceState;
+
+    history.pushState = (...args) => {
+      originalPushState.apply(history, args);
+      updateParams();
+    };
+
+    history.replaceState = (...args) => {
+      originalReplaceState.apply(history, args);
+      updateParams();
+    };
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      history.pushState = originalPushState;
+      history.replaceState = originalReplaceState;
+    };
   }, []);
 
   return params;
@@ -143,8 +165,7 @@ function CatalogContent() {
   const urlParams = useURLParams();
   const recipientId = urlParams.get("recipient");
 
-  const [isPending, startTransition] = useTransition();
-
+  // URL state management with nuqs
   const [urlState, setUrlState] = useQueryStates(
     {
       search: parseAsString.withDefault(""),
@@ -153,29 +174,36 @@ function CatalogContent() {
       sort: parseAsString.withDefault("name"),
     },
     {
-      history: "replace",
+      throttleMs: 1000,
     }
   );
 
+  // Local search state for immediate UI feedback
   const [localSearch, setLocalSearch] = useState(urlState.search);
-  const debouncedSearch = useDebounce(localSearch, 500);
 
-  useEffect(() => {
-    setLocalSearch(urlState.search);
-  }, [urlState.search]);
-
-  useEffect(() => {
-    if (debouncedSearch !== urlState.search) {
-      startTransition(() => {
-        setUrlState({ search: debouncedSearch, page: 1 });
-      });
-    }
-  }, [debouncedSearch, urlState.search, setUrlState]);
+  // Debounce the local search term for server-side filtering
+  const debouncedSearch = useDebounce(localSearch, 700);
 
   const [scrollY, setScrollY] = useState(0);
   const { addItem, items, isInCart, getItemQuantity } = useCart();
   const [isCartOpen, setIsCartOpen] = useState(false);
 
+  // Sync local search with URL state on mount and URL changes
+  useEffect(() => {
+    setLocalSearch(urlState.search);
+  }, [urlState.search]);
+
+  // Handle search input changes
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      setLocalSearch(value);
+      // Update URL state for browser history (optional)
+      setUrlState({ search: value, page: 1 });
+    },
+    [setUrlState]
+  );
+
+  // --- NEW: Fetch all data from the Supabase Edge Function ---
   const {
     data: edgeFunctionData,
     isLoading: edgeFunctionLoading,
@@ -186,7 +214,7 @@ function CatalogContent() {
       "catalog-data",
       campaign_id,
       recipientId,
-      urlState.search,
+      debouncedSearch,
       urlState.category,
       urlState.sort,
       urlState.page,
@@ -195,77 +223,91 @@ function CatalogContent() {
       if (!recipientId || !campaign_id) {
         throw new Error("Missing recipient ID or campaign ID.");
       }
+
+      // IMPORTANT: Replace '/functions/v1/get-catalog-data' with the actual URL of your deployed Edge Function.
+      // If you're running locally, it might be something like 'http://localhost:54321/functions/v1/get-catalog-data'
+      // If deployed, it will be your Supabase project URL + '/functions/v1/get-catalog-data'
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/campaign`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/campaign`, // Assuming 'campaign' is your Edge Function name
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             campaign_id,
             recipient_id: recipientId,
-            search: urlState.search,
+            search: debouncedSearch,
             category: urlState.category,
             sort: urlState.sort,
             page: urlState.page,
           }),
         }
       );
+      console.log(response);
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(
           errorData.error || "Failed to fetch catalog data from Edge Function."
         );
       }
+
       return response.json();
     },
     enabled: !!recipientId && !!campaign_id,
-    retry: false,
-    placeholderData: (previousData) => previousData,
-    refetchOnWindowFocus: false,
+    retry: false, // Don't retry on 404 or specific errors handled by Edge Function
+    placeholderData: (previousData) => previousData, // Keep previous data while fetching
   });
 
+  // Destructure data from the Edge Function response
   const campaignRecipient = edgeFunctionData?.campaignRecipient;
   const catalogInfo = edgeFunctionData?.catalogInfo;
   const allCategories = edgeFunctionData?.allCategories || [];
   const itemsData = edgeFunctionData?.itemsData || { items: [], totalCount: 0 };
 
+  // Scroll detection for app bar
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const totalPages =
-    itemsData?.items?.length == 10
-      ? Math.ceil(itemsData.totalCount / ITEMS_PER_PAGE)
-      : 0;
+  // Reset page to 1 when filters change
+  useEffect(() => {
+    if (urlState.page > 1 && (debouncedSearch || urlState.category !== "all")) {
+      setUrlState({ page: 1 });
+    }
+  }, [debouncedSearch, urlState.category, setUrlState, urlState.page]);
 
-  const categoryOptions = useMemo(
-    () => [
-      "all",
-      ...allCategories.map((cat: ItemCategory) => cat.name.toLowerCase()),
-    ],
-    [allCategories]
-  );
+  // Calculate pagination
+  const totalPages = Math.ceil(itemsData.totalCount / ITEMS_PER_PAGE);
 
-  const addToCart = useCallback(
-    (item: Item) => {
-      addItem({
-        item_id: item.item_id,
-        name: item.name,
-        retail_price: item.retail_price,
-        image_url: item.image_url,
-        category_name: item.category_name,
-        stock_quantity: item.in_stock ? 999 : 0,
-      });
-    },
-    [addItem]
-  );
+  // Category options - only categories that exist in this catalog
+  const categoryOptions = [
+    "all",
+    ...allCategories.map((cat: ItemCategory) => cat.name.toLowerCase()),
+  ];
 
-  const isInitialLoading = edgeFunctionLoading && !edgeFunctionData;
-  const isContentLoading = isPending || edgeFunctionFetching;
+  // Cart functions
+  const addToCart = (item: Item) => {
+    addItem({
+      item_id: item.item_id,
+      name: item.name,
+      retail_price: item.retail_price,
+      image_url: item.image_url,
+      category_name: item.category_name,
+      stock_quantity: item.stock_quantity,
+    });
+  };
 
-  if (edgeFunctionError) {
+  // Show full page loading only on initial mount when we have no data
+  const isInitialLoading =
+    edgeFunctionLoading ||
+    (edgeFunctionFetching && !edgeFunctionData?.itemsData.items.length);
+
+  // Show recipient error if there's an issue with recipient lookup
+  if (!recipientId || edgeFunctionError) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="max-w-md w-full">
@@ -273,9 +315,18 @@ function CatalogContent() {
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Error Loading Catalog</AlertTitle>
             <AlertDescription className="mt-2">
-              {edgeFunctionError.message}
+              {edgeFunctionError
+                ? edgeFunctionError.message
+                : `The recipient ID "${recipientId}" could not be found or is missing. Please check the link or contact support.`}
             </AlertDescription>
           </Alert>
+        </div>
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 grid grid-cols-2 -space-x-[500px] opacity-40 dark:opacity-20"
+        >
+          <div className="blur-[106px] h-56 bg-gradient-to-br from-primary to-gray-400 dark:from-blue-700"></div>
+          <div className="blur-[106px] h-32 bg-gradient-to-r from-cyan-400 to-sky-300 dark:to-indigo-600"></div>
         </div>
       </div>
     );
@@ -287,6 +338,13 @@ function CatalogContent() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-[100px] w-[100px] border-b-2 border-primary mx-auto"></div>
           <p className="mt-4 text-muted-foreground">Loading catalog...</p>
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 grid grid-cols-2 -space-x-[500px] opacity-40 dark:opacity-20"
+          >
+            <div className="blur-[106px] h-56 bg-gradient-to-br from-primary to-purple-400 dark:from-blue-700"></div>
+            <div className="blur-[106px] h-32 bg-gradient-to-r from-cyan-400 to-sky-300 dark:to-indigo-600"></div>
+          </div>
         </div>
       </div>
     );
@@ -294,6 +352,7 @@ function CatalogContent() {
 
   return (
     <div className="min-h-screen bg-background mx-auto">
+      {/* Enhanced Translucent App Bar with scroll-based background */}
       <header
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 mx-auto ${
           scrollY > 10
@@ -315,7 +374,7 @@ function CatalogContent() {
               onClick={() => setIsCartOpen(true)}
               className="relative"
             >
-              <ShoppingCart />
+              <ShoppingCart className="" />
               {items.length > 0 && (
                 <Badge
                   variant="destructive"
@@ -330,28 +389,32 @@ function CatalogContent() {
         </div>
       </header>
 
+      {/* Cart Sheet - Pass client data if available */}
       <div className="print:hidden">
         <CartSheet
           open={isCartOpen}
           onOpenChange={setIsCartOpen}
           client={campaignRecipient?.client || null}
           recipientId={recipientId}
-          // --- FIX: Pass null if catalogInfo is undefined to satisfy prop type ---
-          catalogInfo={catalogInfo || null}
+          catalogInfo={catalogInfo as any}
         />
       </div>
 
+      {/* Enhanced Hero Section - 2 Column Layout */}
       <section className="relative dark:shadow-lg min-h-[50vh] mx-auto py-8 bg-gradient-to-br from-primary/10 via-primary/5 to-background pt-20 overflow-hidden">
         <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
         <div className="container px-4 md:px-6 relative z-10 h-full mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center min-h-[calc(50vh-5rem)]">
+            {/* Left Column - Logo */}
             <div className="flex items-center justify-center lg:justify-start">
               <div className="text-center lg:text-left">
+                {/* Logo placeholder - replace with your actual logo */}
                 <img
                   src={logo || "/placeholder.svg"}
                   alt=""
                   className="w-[250px] m-auto py-4 select-none "
                 />
+                {/* Contact Info under logo */}
                 <div className="flex flex-col sm:flex-row lg:flex-col xl:flex-row justify-center lg:justify-start items-center gap-4 text-sm md:text-base">
                   <div className="flex items-center space-x-2 text-primary font-bold bg-primary/10 px-3 py-2 rounded-full">
                     <Phone className="h-4 w-4" />
@@ -364,7 +427,9 @@ function CatalogContent() {
                 </div>
               </div>
             </div>
+            {/* Right Column - Content */}
             <div className="space-y-6 ">
+              {/* Show personalized greeting if recipient is available */}
               {campaignRecipient?.client && (
                 <div className="bg-primary/10 rounded-lg p-4 mb-6">
                   <p className="text-lg font-medium">
@@ -384,6 +449,7 @@ function CatalogContent() {
                   products. Quality, style, and value in every purchase.
                 </p>
               </div>
+              {/* Enhanced Catalog and Promotion Info */}
               <div className="bg-card/80 backdrop-blur-sm rounded-xl p-6 border shadow-lg">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -416,7 +482,9 @@ function CatalogContent() {
         </div>
       </section>
 
+      {/* Main Content */}
       <main className="container px-4 md:px-6 py-8 md:py-12 mx-auto ">
+        {/* Enhanced Search and Filters */}
         <div className="space-y-4 mb-8">
           <div className="flex flex-col lg:flex-row gap-4">
             <div className="relative flex-1">
@@ -424,19 +492,22 @@ function CatalogContent() {
               <Input
                 placeholder="Search products..."
                 value={localSearch}
-                onChange={(e) => setLocalSearch(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-10 h-12"
               />
+              {/* Show search loading indicator when local search is different from debounced search */}
+              {localSearch !== debouncedSearch && localSearch && (
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                </div>
+              )}
             </div>
             <div className="flex flex-col sm:flex-row gap-4">
               <Select
                 value={urlState.category}
-                onValueChange={(value) => {
-                  startTransition(() =>
-                    // @ts-ignore
-                    setUrlState({ category: value, page: 1 })
-                  );
-                }}
+                onValueChange={(value) =>
+                  setUrlState({ category: value, page: 1 })
+                }
               >
                 <SelectTrigger className="w-full sm:w-[180px] h-12">
                   <Filter className="h-4 w-4 mr-2" />
@@ -452,10 +523,7 @@ function CatalogContent() {
               </Select>
               <Select
                 value={urlState.sort}
-                onValueChange={(value) => {
-                  // @ts-ignore
-                  startTransition(() => setUrlState({ sort: value }));
-                }}
+                onValueChange={(value) => setUrlState({ sort: value })}
               >
                 <SelectTrigger className="w-full sm:w-[180px] h-12">
                   <SelectValue placeholder="Sort by" />
@@ -468,12 +536,16 @@ function CatalogContent() {
               </Select>
             </div>
           </div>
+          {/* Results info */}
           <div className="flex items-center justify-between text-sm text-muted-foreground">
             <span>
               Showing {itemsData.items.length} of {itemsData.totalCount}{" "}
               products
+              {debouncedSearch && ` for "${debouncedSearch}"`}
+              {urlState.category !== "all" && ` in ${urlState.category}`}
             </span>
-            {isContentLoading && (
+            {/* Show fetching indicator for background updates */}
+            {edgeFunctionFetching && itemsData.items.length > 0 && (
               <span className="flex items-center gap-2 text-xs">
                 <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary"></div>
                 Updating...
@@ -482,36 +554,34 @@ function CatalogContent() {
           </div>
         </div>
 
-        <div
-          className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 mb-8 min-h-[400px] transition-opacity duration-300 ${
-            isContentLoading ? "opacity-60" : "opacity-100"
-          }`}
-        >
-          {itemsData.items.length === 0 && !isContentLoading ? (
+        {/* Product Grid with Enhanced Hover Effects */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 mb-8 min-h-[400px]">
+          {itemsData.items.length === 0 && !edgeFunctionLoading ? (
             <div className="col-span-full flex flex-col items-center justify-center py-12 text-center">
-              <div className="text-6xl mb-4">📦</div>
+              <div className="text-6xl mb-4">📦</div> {/* Replaced Unicode */}
               <h3 className="text-lg font-semibold mb-2">No products found</h3>
               <p className="text-muted-foreground mb-4">
-                Try adjusting your search or filters.
+                {debouncedSearch || urlState.category !== "all"
+                  ? "Try adjusting your search or filters"
+                  : "No products available in this catalog"}
               </p>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setLocalSearch("");
-                  startTransition(() =>
-                    // @ts-ignore
-                    setUrlState({ search: "", category: "all", page: 1 })
-                  );
-                }}
-              >
-                Clear filters
-              </Button>
+              {(debouncedSearch || urlState.category !== "all") && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setLocalSearch("");
+                    setUrlState({ search: "", category: "all", page: 1 });
+                  }}
+                >
+                  Clear filters
+                </Button>
+              )}
             </div>
           ) : (
             itemsData.items.map((item) => (
               <Card
                 key={item.item_id}
-                className="hover:shadow-lg pt-0 transition-all duration-300 hover:-translate-y-1 overflow-hidden relative flex flex-col"
+                className="hover:shadow-lg pt-0 transition-all duration-300 hover:-translate-y-1 overflow-hidden relative"
               >
                 <div className="absolute top-[-3px]  left-[-3px] z-20">
                   <Badge variant={"default"} className="rounded-none">
@@ -536,7 +606,7 @@ function CatalogContent() {
                           <Badge variant="secondary">
                             {item.category_name}
                           </Badge>
-                          {!item.in_stock && (
+                          {item.stock_quantity === 0 && (
                             <Badge variant="destructive">Out of Stock</Badge>
                           )}
                         </div>
@@ -564,11 +634,11 @@ function CatalogContent() {
                   ) : (
                     <Button
                       className="w-full mt-auto"
-                      disabled={!item.in_stock}
+                      disabled={item.stock_quantity === 0}
                       onClick={() => addToCart(item)}
                     >
                       <ShoppingCart className="h-4 w-4 mr-2" />
-                      {item.in_stock ? "Add to Cart" : "Out of Stock"}
+                      {item.stock_quantity > 0 ? "Add to Cart" : "Out of Stock"}
                     </Button>
                   )}
                 </CardFooter>
@@ -577,6 +647,7 @@ function CatalogContent() {
           )}
         </div>
 
+        {/* Pagination */}
         {totalPages > 1 && (
           <div className="flex justify-center">
             <Pagination>
@@ -586,12 +657,8 @@ function CatalogContent() {
                     href="#"
                     onClick={(e) => {
                       e.preventDefault();
-                      if (urlState.page > 1) {
-                        startTransition(() =>
-                          // @ts-ignore
-                          setUrlState({ page: urlState.page - 1 })
-                        );
-                      }
+                      if (urlState.page > 1)
+                        setUrlState({ page: urlState.page - 1 });
                     }}
                     className={
                       urlState.page === 1
@@ -600,7 +667,6 @@ function CatalogContent() {
                     }
                   />
                 </PaginationItem>
-                {/* --- FIX: Restored full pagination logic --- */}
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map(
                   (page) => {
                     if (
@@ -614,8 +680,7 @@ function CatalogContent() {
                             href="#"
                             onClick={(e) => {
                               e.preventDefault();
-                              // @ts-ignore
-                              startTransition(() => setUrlState({ page }));
+                              setUrlState({ page });
                             }}
                             isActive={urlState.page === page}
                           >
@@ -641,12 +706,8 @@ function CatalogContent() {
                     href="#"
                     onClick={(e) => {
                       e.preventDefault();
-                      if (urlState.page < totalPages) {
-                        startTransition(() =>
-                          // @ts-ignore
-                          setUrlState({ page: urlState.page + 1 })
-                        );
-                      }
+                      if (urlState.page < totalPages)
+                        setUrlState({ page: urlState.page + 1 });
                     }}
                     className={
                       urlState.page === totalPages
@@ -661,9 +722,11 @@ function CatalogContent() {
         )}
       </main>
 
+      {/* Footer */}
       <footer className="bg-muted/50 border-t">
         <div className="container mx-auto px-4 md:px-6 py-8 md:py-12">
           <div className="flex justify-between items-center flex-wrap">
+            {/* Company Info */}
             <div className="space-y-4 max-w-[250px]">
               <h3 className="text-lg font-semibold">Roza Wholesale</h3>
               <p className="text-sm text-muted-foreground">
@@ -686,6 +749,7 @@ function CatalogContent() {
                 </Button>
               </div>
             </div>
+            {/* Contact Info */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Contact Info</h3>
               <div className="space-y-3 text-sm">
@@ -716,7 +780,28 @@ function CatalogContent() {
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <p className="text-sm text-muted-foreground">
               © {new Date().getFullYear()} Roza. All rights reserved.{" "}
+              {/* Replaced Unicode */}
             </p>
+            {/* <div className="flex space-x-6 text-sm">
+              <a
+                href="#"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Privacy Policy
+              </a>
+              <a
+                href="#"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Terms of Service
+              </a>
+              <a
+                href="#"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Cookie Policy
+              </a>
+            </div> */}
           </div>
         </div>
       </footer>

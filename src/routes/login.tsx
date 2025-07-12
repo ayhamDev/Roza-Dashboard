@@ -1,9 +1,13 @@
 import { LoginForm } from "@/components/login-form";
 import { ThemeProvider } from "@/context/theme";
+import { NoAuthGuard } from "@/lib/authGuard";
 import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/login")({
   component: RouteComponent,
+  beforeLoad: async () => {
+    return await NoAuthGuard();
+  },
 });
 
 function RouteComponent() {

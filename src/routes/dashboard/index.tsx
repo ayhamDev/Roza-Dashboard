@@ -1,7 +1,7 @@
 "use client";
 
 import { useBreadcrumbs } from "@/context/breadcrumpst";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useLayoutEffect } from "react";
 
 import { DashboardOverviewStats } from "@/components/card/dashboard-overview-stats";
@@ -10,6 +10,7 @@ import { RecentActivityFeed } from "@/components/card/recent-activity-feed";
 import { SystemAlerts } from "@/components/card/system-alerts";
 import { DashboardCharts } from "@/components/chart/dashboard-charts";
 import { Badge } from "@/components/ui/badge";
+import { adminGuard } from "@/lib/authGuard";
 import { TrendingUp, Zap } from "lucide-react";
 
 export const Route = createFileRoute("/dashboard/")({

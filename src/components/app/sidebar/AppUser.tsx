@@ -8,10 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -21,13 +18,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Bell,
-  CreditCard,
-  LogOut,
-  MoreVertical,
-  UserCircle,
-} from "lucide-react";
+import { LogOut, MoreVertical } from "lucide-react";
 
 export function AppUser() {
   const { isMobile } = useSidebar();
