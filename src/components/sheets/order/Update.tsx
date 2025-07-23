@@ -455,7 +455,7 @@ const UpdateOrderSheet = (props: UpdateOrderSheetProps) => {
           item_id,
           quantity,
           unit_price,
-          catalog_transitions!order_transactions_item_id_fkey1 (
+          catalog_transitions!order_transactions_item_id_fkey (
             catalog_transition_id,
             item:item_id (
               item_id,
