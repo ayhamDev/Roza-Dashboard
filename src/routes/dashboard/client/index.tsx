@@ -1,4 +1,7 @@
+// /dashboard/client/ page component with delete functionality
+
 import AppCopyButton from "@/components/app/AppCopyButton";
+import { ConfirmDialog } from "@/components/app/ConfirmDialog";
 import { ClientStatsCards } from "@/components/card/client-stats-cards";
 import { DataTable } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
@@ -18,7 +21,11 @@ import {
   toRange,
 } from "@/lib/pagination";
 import { supabase } from "@/supabase";
-import { useQuery } from "@tanstack/react-query";
+import {
+  useMutation, // NEW: Import mutation hook
+  useQuery,
+  useQueryClient, // NEW: Import query client
+} from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 import {
@@ -33,7 +40,10 @@ import {
   Plus,
   User,
 } from "lucide-react";
-import { useLayoutEffect, useMemo } from "react";
+import { useLayoutEffect, useMemo, useState } from "react"; // NEW: Import useState
+import { toast } from "sonner"; // NEW: Import toast for notifications
+
+type Client = Database["public"]["Tables"]["client"]["Row"];
 
 export const Route = createFileRoute("/dashboard/client/")({
   component: RouteComponent,
@@ -42,13 +52,15 @@ export const Route = createFileRoute("/dashboard/client/")({
 function RouteComponent() {
   const { setBreadcrumbs } = useBreadcrumbs();
   const { openSheet } = useSheet();
+  const queryClient = useQueryClient(); // NEW: Get query client instance
+
+  // NEW: State for delete confirmation dialog
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+
   useLayoutEffect(() => {
     setBreadcrumbs([
-      {
-        id: "dashboard",
-        label: "Dashboard",
-        href: "/dashboard",
-      },
+      { id: "dashboard", label: "Dashboard", href: "/dashboard" },
       {
         id: "client",
         label: "Clients",
@@ -57,6 +69,29 @@ function RouteComponent() {
       },
     ]);
   }, []);
+
+  // NEW: Mutation for deleting a client
+  const { mutate: deleteClient, isPending: isDeleting } = useMutation({
+    mutationFn: async (clientId: number) => {
+      const { error } = await supabase
+        .from("client")
+        .delete()
+        .eq("client_id", clientId);
+
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      toast.success(`Client "${selectedClient?.name}" has been deleted.`);
+      queryClient.invalidateQueries({ queryKey }); // Invalidate query to refetch
+      setIsDeleteDialogOpen(false);
+      setSelectedClient(null);
+    },
+    onError: (error) => {
+      toast.error(`Failed to delete client: ${error.message}`);
+      setIsDeleteDialogOpen(false);
+      setSelectedClient(null);
+    },
+  });
 
   const { table, searchParams, queryKey } = useTable({
     columns: [
@@ -193,22 +228,23 @@ function RouteComponent() {
       {
         id: "actions",
         cell: ({ row }) => {
+          const client = row.original as Client;
           const actions: RowActionItem<any>[] = [
             {
               icon: Eye,
-              label: "View ",
-              action: (row) => {
+              label: "View Client",
+              action: () => {
                 return openSheet("client:view", {
-                  id: row.getValue("client_id") as string,
+                  id: client.client_id.toString(),
                 });
               },
             },
             {
               icon: Edit,
-              label: "Edit",
-              action: (row) => {
+              label: "Edit Client",
+              action: () => {
                 return openSheet("client:update", {
-                  id: row.getValue("client_id") as string,
+                  id: client.client_id.toString(),
                 });
               },
             },
@@ -217,9 +253,10 @@ function RouteComponent() {
             },
             {
               icon: Delete,
-              label: "Delete ",
-              action: (row) => {
-                console.log(row);
+              label: "Delete Client",
+              action: () => {
+                setSelectedClient(client);
+                setIsDeleteDialogOpen(true);
               },
             },
           ];
@@ -276,11 +313,6 @@ function RouteComponent() {
     baseQueryKey: ["client"],
   });
 
-  // const page = Number(searchParams.page) + 1;
-  // const limit = 10;
-  // const from = (page - 1) * limit;
-  // const to = from + limit - 1;
-
   const page = useMemo(
     () => parsePageParam(searchParams.page),
     [searchParams.page]
@@ -316,13 +348,14 @@ function RouteComponent() {
       return buildPaginationResponse(data, searchParams, count);
     },
   });
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between py-3 bg-background/20 backdrop-blur-xl  md:px-8 px-4">
         <CardTitle>Clients Management</CardTitle>
         <Button
           onClick={() => {
-            openSheet("client:create", { id: "hello" });
+            openSheet("client:create", {});
           }}
           className="cursor-pointer"
           variant={"default"}
@@ -344,6 +377,18 @@ function RouteComponent() {
           </CardContent>
         </Card>
       </div>
+      {/* NEW: Render the confirmation dialog when a client is selected for deletion */}
+      (
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        onConfirm={() => deleteClient(selectedClient?.client_id as number)}
+        loading={isDeleting}
+        title={`Delete Client: ${selectedClient?.name as string}`}
+        description="Are you sure you want to delete this client? deleting this client will also delete all associated data (orders,etc...) ,This action cannot be undone."
+        confirmText="Delete"
+      />
+      )
     </div>
   );
 }

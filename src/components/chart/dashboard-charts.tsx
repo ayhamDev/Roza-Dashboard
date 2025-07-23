@@ -290,6 +290,7 @@ export function DashboardCharts() {
         .select("created_at, total_amount, client_id")
         .gte("created_at", thirtyDaysAgo)
         .neq("status", "Pending")
+        .neq("status", "Cancelled")
         .order("created_at", { ascending: true });
 
       if (error) throw error;
@@ -402,7 +403,6 @@ export function DashboardCharts() {
     () => createOrderStatusConfig(isDarkMode),
     [isDarkMode]
   );
-  console.log(revenueData);
 
   const revenueGrowth = React.useMemo(() => {
     if (revenueData.length < 2)

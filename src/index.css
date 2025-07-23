@@ -121,6 +121,9 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
 }
+div[data-description] {
+  @apply text-gray-900;
+}
 
 @layer base {
   * {

@@ -1,5 +1,6 @@
 "use client";
 
+import { ConfirmDialog } from "@/components/app/ConfirmDialog"; // NEW: Import confirmation dialog
 import { CampaignStatsCards } from "@/components/card/campaign-stats-cards";
 import { DataTable } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
@@ -19,7 +20,11 @@ import {
   toRange,
 } from "@/lib/pagination";
 import { supabase } from "@/supabase";
-import { useQuery } from "@tanstack/react-query";
+import {
+  useMutation, // NEW: Import mutation hook
+  useQuery,
+  useQueryClient, // NEW: Import query client
+} from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 import {
@@ -38,17 +43,26 @@ import {
   Target,
   Users,
 } from "lucide-react";
-import { useLayoutEffect, useMemo } from "react";
+import { useLayoutEffect, useMemo, useState } from "react"; // NEW: Import useState
+import { toast } from "sonner"; // NEW: Import toast for notifications
 
 export const Route = createFileRoute("/dashboard/campaign/")({
   component: RouteComponent,
 });
 
-type CampaignRow = Database["public"]["Tables"]["campaign"]["Row"];
+// NEW: Renamed for consistency
+type Campaign = Database["public"]["Tables"]["campaign"]["Row"];
 
 function RouteComponent() {
   const { setBreadcrumbs } = useBreadcrumbs();
   const { openSheet } = useSheet();
+  const queryClient = useQueryClient(); // NEW: Get query client instance
+
+  // NEW: State for delete confirmation dialog
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(
+    null
+  );
 
   useLayoutEffect(() => {
     setBreadcrumbs([
@@ -65,6 +79,30 @@ function RouteComponent() {
       },
     ]);
   }, []);
+
+  // NEW: Mutation for deleting a campaign
+  const { mutate: deleteCampaign, isPending: isDeleting } = useMutation({
+    mutationFn: async (campaignId: string) => {
+      // Deleting a campaign should also delete its recipients if ON DELETE CASCADE is set
+      const { error } = await supabase
+        .from("campaign")
+        .delete()
+        .eq("campaign_id", campaignId);
+
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      toast.success(`Campaign "${selectedCampaign?.name}" has been deleted.`);
+      queryClient.invalidateQueries({ queryKey }); // Invalidate query to refetch
+      setIsDeleteDialogOpen(false);
+      setSelectedCampaign(null);
+    },
+    onError: (error) => {
+      toast.error(`Failed to delete campaign: ${error.message}`);
+      setIsDeleteDialogOpen(false);
+      setSelectedCampaign(null);
+    },
+  });
 
   const { table, searchParams, queryKey } = useTable({
     columns: [
@@ -101,7 +139,7 @@ function RouteComponent() {
         ),
         cell: ({ row }) => {
           const name = row.getValue("name") as string;
-          const description = (row.original as CampaignRow)?.description;
+          const description = (row.original as Campaign)?.description;
 
           return (
             <div className="flex flex-col gap-1 min-w-[200px]">
@@ -244,39 +282,40 @@ function RouteComponent() {
       {
         id: "actions",
         cell: ({ row }) => {
+          // NEW: Get the full campaign object for actions
+          const campaign = row.original as Campaign;
           const actions: RowActionItem<any>[] = [
             {
               icon: Eye,
               label: "View Campaign",
-              action: (row) => {
+              action: () => {
                 return openSheet("campaign:view", {
-                  id: row.getValue("campaign_id") as string,
+                  id: campaign.campaign_id,
                 });
               },
             },
             {
               icon: Edit,
               label: "Edit Campaign",
-              action: (row) => {
+              action: () => {
                 return openSheet("campaign:update", {
-                  id: row.getValue("campaign_id") as string,
+                  id: campaign.campaign_id,
                 });
               },
             },
-
             {
               isSeparator: true,
             },
             {
               icon: Delete,
               label: "Delete Campaign",
-              action: (row) => {
-                console.log("Delete campaign:", row);
-                // Add delete confirmation logic here
+              action: () => {
+                // NEW: Set selected campaign and open dialog
+                setSelectedCampaign(campaign);
+                setIsDeleteDialogOpen(true);
               },
             },
           ];
-
           return <DataTableRowActions row={row} actions={actions} />;
         },
       },
@@ -342,9 +381,7 @@ function RouteComponent() {
     [page, searchParams.limit]
   );
 
-  const { data, isLoading, isError } = useQuery<
-    IPaginationResponse<CampaignRow>
-  >({
+  const { data, isLoading, isError } = useQuery<IPaginationResponse<Campaign>>({
     queryKey,
     queryFn: async () => {
       const QueryBuilder = supabase
@@ -361,35 +398,25 @@ function RouteComponent() {
         )
         .range(from, to);
 
-      // Search functionality
       if (searchParams.search) {
-        // Search by campaign ID or name
         QueryBuilder.or(
           `campaign_id.ilike.%${searchParams.search}%,name.ilike.%${searchParams.search}%`
         );
       }
-
-      // Status filter
       if (searchParams.filter?.["filter[status]"]) {
         const statuses = searchParams.filter["filter[status]"]?.split(",");
         QueryBuilder.in("status", statuses as any);
       }
-
-      // Delivery method filter - updated to handle array
       if (searchParams.filter?.["filter[delivery_method]"]) {
         const methods =
           searchParams.filter["filter[delivery_method]"]?.split(",");
-        // Use overlaps operator for array filtering
         QueryBuilder.overlaps("delivery_method", methods);
       }
-
-      // Sorting
       if (searchParams.sort) {
         QueryBuilder.order(searchParams.sort.by as any, {
           ascending: searchParams.sort.order === "asc",
         });
       } else {
-        // Default sort by created_at desc
         QueryBuilder.order("created_at", { ascending: false });
       }
 
@@ -407,6 +434,7 @@ function RouteComponent() {
         <CardTitle>Campaign Management</CardTitle>
         <Button
           variant={"default"}
+          size={"lg"}
           className="cursor-pointer"
           onClick={() => openSheet("campaign:create")}
         >
@@ -427,6 +455,18 @@ function RouteComponent() {
           </CardContent>
         </Card>
       </div>
+      {/* NEW: Render the confirmation dialog when a campaign is selected for deletion */}
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        onConfirm={() =>
+          deleteCampaign(selectedCampaign?.campaign_id as string)
+        }
+        loading={isDeleting}
+        title={`Delete Campaign: ${selectedCampaign?.name as string}`}
+        description="Are you sure you want to delete this campaign? All associated data (like recipient lists) will also be removed. This action cannot be undone."
+        confirmText="Delete"
+      />
     </div>
   );
 }

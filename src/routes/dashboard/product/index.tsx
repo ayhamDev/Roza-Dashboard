@@ -1,3 +1,6 @@
+// /dashboard/product/ page component with delete functionality
+
+import { ConfirmDialog } from "@/components/app/ConfirmDialog"; // NEW: Import confirmation dialog
 import { ProductStatsCards } from "@/components/card/product-stats-cards";
 import { DataTable } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
@@ -18,7 +21,11 @@ import {
   toRange,
 } from "@/lib/pagination";
 import { supabase } from "@/supabase";
-import { useQuery } from "@tanstack/react-query";
+import {
+  useMutation, // NEW: Import mutation hook
+  useQuery,
+  useQueryClient, // NEW: Import query client
+} from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 import {
@@ -35,7 +42,11 @@ import {
   Plus,
   Tag,
 } from "lucide-react";
-import { useLayoutEffect, useMemo } from "react";
+import { useLayoutEffect, useMemo, useState } from "react"; // NEW: Import useState
+import { toast } from "sonner"; // NEW: Import toast for notifications
+
+// NEW: Define Product type for better type safety
+type Product = Database["public"]["Tables"]["item"]["Row"];
 
 export const Route = createFileRoute("/dashboard/product/")({
   component: RouteComponent,
@@ -44,6 +55,11 @@ export const Route = createFileRoute("/dashboard/product/")({
 function RouteComponent() {
   const { setBreadcrumbs } = useBreadcrumbs();
   const { openSheet } = useSheet();
+  const queryClient = useQueryClient(); // NEW: Get query client instance
+
+  // NEW: State for delete confirmation dialog
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   useLayoutEffect(() => {
     setBreadcrumbs([
@@ -53,13 +69,42 @@ function RouteComponent() {
         href: "/dashboard",
       },
       {
-        id: "client",
+        id: "product", // Corrected ID
         label: "Products",
-        href: "/dashboard/products",
+        href: "/dashboard/product", // Corrected href
         isActive: true,
       },
     ]);
   }, []);
+
+  // NEW: Mutation for deleting a product (item)
+  const { mutate: deleteProduct, isPending: isDeleting } = useMutation({
+    mutationFn: async (productId: number) => {
+      // Note: Deleting an item might fail if it's referenced in `order_transactions`
+      // and ON DELETE is not set to CASCADE. This error is handled below.
+      const { error } = await supabase
+        .from("item")
+        .delete()
+        .eq("item_id", productId);
+
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      toast.success(`Product "${selectedProduct?.name}" has been deleted.`);
+      queryClient.invalidateQueries({ queryKey }); // Invalidate query to refetch
+      setIsDeleteDialogOpen(false);
+      setSelectedProduct(null);
+    },
+    onError: (error) => {
+      toast.error("Failed to delete product", {
+        description:
+          "This can happen if the product is part of an existing order or catalog. Please remove its associations first.",
+      });
+      console.error("Delete product error:", error.message);
+      setIsDeleteDialogOpen(false);
+      setSelectedProduct(null);
+    },
+  });
 
   const { table, searchParams, queryKey } = useTable({
     columns: [
@@ -78,7 +123,6 @@ function RouteComponent() {
           );
         },
       },
-
       {
         accessorKey: "name",
         header: ({ column }) => (
@@ -96,7 +140,7 @@ function RouteComponent() {
           const imageUrl = (row.original as any).image_url as string | null;
 
           return (
-            <div className="flex flex-row items-center gap-4 min-w-[200px]">
+            <div className="flex flex-row items-center gap-4 min-w-max">
               {imageUrl ? (
                 <img
                   src={getImageUrl(imageUrl) || "/placeholder.svg"}
@@ -112,14 +156,14 @@ function RouteComponent() {
               )}
               <div className="flex flex-col gap-1">
                 <span
-                  className="font-medium text-sm truncate max-w-[200px]"
+                  className="font-medium text-sm truncate max-w-[250px]"
                   title={name}
                 >
                   {name}
                 </span>
                 {description && (
                   <span
-                    className="text-xs text-muted-foreground truncate max-w-[250px]"
+                    className="text-xs text-muted-foreground truncate max-w-[200px]"
                     title={description}
                   >
                     {description}
@@ -156,30 +200,6 @@ function RouteComponent() {
         },
       },
       {
-        accessorKey: "cost_price",
-        header: ({ column }) => (
-          <DataTableColumnHeader
-            icon={DollarSign}
-            column={column}
-            title="Cost Price"
-          />
-        ),
-        cell: ({ row }) => {
-          const price = row.getValue("cost_price") as number;
-          const formatted = price?.toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          });
-
-          return (
-            <Badge variant="outline">
-              <DollarSign className="h-3 w-3 " />
-              {formatted}
-            </Badge>
-          );
-        },
-      },
-      {
         accessorKey: "retail_price",
         header: ({ column }) => (
           <DataTableColumnHeader
@@ -197,31 +217,7 @@ function RouteComponent() {
 
           return (
             <Badge variant="outline">
-              <DollarSign className="h-3 w-3 " />
-              {formatted}
-            </Badge>
-          );
-        },
-      },
-      {
-        accessorKey: "wholesale_price",
-        header: ({ column }) => (
-          <DataTableColumnHeader
-            icon={DollarSign}
-            column={column}
-            title="Wholesale Price"
-          />
-        ),
-        cell: ({ row }) => {
-          const price = row.getValue("wholesale_price") as number;
-          const formatted = price?.toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          });
-
-          return (
-            <Badge variant="outline">
-              <DollarSign className="h-3 w-3 " />
+              <DollarSign className="h-3 w-3 mr-1" />
               {formatted}
             </Badge>
           );
@@ -234,17 +230,10 @@ function RouteComponent() {
         ),
         cell: ({ row }) => {
           const quantity = row.getValue("stock_quantity") as number;
-          const isOutOfStock = quantity === 0;
-
           return (
-            <div className="flex items-center gap-2">
-              <Badge
-                variant={isOutOfStock ? "destructive" : "default"}
-                className="font-medium text-sm"
-              >
-                {isOutOfStock ? "Out of Stock" : "In Stock"}
-              </Badge>
-            </div>
+            <Badge variant={quantity > 0 ? "default" : "destructive"}>
+              {quantity}
+            </Badge>
           );
         },
       },
@@ -285,22 +274,24 @@ function RouteComponent() {
       {
         id: "actions",
         cell: ({ row }) => {
+          // NEW: Get the full product object for actions
+          const product = row.original as Product;
           const actions: RowActionItem<any>[] = [
             {
               icon: Eye,
-              label: "View ",
-              action: (row) => {
+              label: "View Product",
+              action: () => {
                 return openSheet("product:view", {
-                  id: row.getValue("item_id") as string,
+                  id: product.item_id.toString(),
                 });
               },
             },
             {
               icon: Edit,
-              label: "Edit",
-              action: (row) => {
+              label: "Edit Product",
+              action: () => {
                 return openSheet("product:update", {
-                  id: row.getValue("item_id") as string,
+                  id: product.item_id.toString(),
                 });
               },
             },
@@ -309,9 +300,11 @@ function RouteComponent() {
             },
             {
               icon: Delete,
-              label: "Delete ",
-              action: (row) => {
-                console.log(row);
+              label: "Delete Product",
+              action: () => {
+                // NEW: Set selected product and open dialog
+                setSelectedProduct(product);
+                setIsDeleteDialogOpen(true);
               },
             },
           ];
@@ -341,38 +334,9 @@ function RouteComponent() {
           );
         },
       },
-      {
-        accessorKey: "updated_at",
-        header: ({ column }) => (
-          <DataTableColumnHeader
-            icon={Calendar}
-            column={column}
-            title="Updated At"
-          />
-        ),
-        cell: ({ row }) => {
-          const ts = row.getValue("updated_at") as string;
-          const date = parseISO(ts);
-
-          return (
-            <div className="flex items-center gap-2">
-              {format(date, "yyyy-MM-dd hh:mm a")?.toLowerCase()}
-              <span className="text-muted-foreground">
-                ({formatDistanceToNow(date)} ago)
-              </span>
-            </div>
-          );
-        },
-      },
     ],
-
     baseQueryKey: ["product"],
   });
-
-  // const page = Number(searchParams.page) + 1;
-  // const limit = 10;
-  // const from = (page - 1) * limit;
-  // const to = from + limit - 1;
 
   const page = useMemo(
     () => parsePageParam(searchParams.page),
@@ -398,18 +362,9 @@ function RouteComponent() {
         )
         .range(from, to);
       if (searchParams.search) {
-        // this ORs order_id = X
-        if (!isNaN(searchParams.search as any)) {
-          QueryBuilder.eq(`item_id`, searchParams.search as any);
-        }
-      }
-
-      if (searchParams.filter?.["filter[status]"]) {
-        console.log(searchParams.filter?.["filter[status]"]);
-
-        QueryBuilder.in("status", [
-          searchParams.filter?.["filter[status]"].split(",") as any,
-        ]);
+        QueryBuilder.or(
+          `name.ilike.%${searchParams.search}%,description.ilike.%${searchParams.search}%`
+        );
       }
       if (searchParams.sort) {
         QueryBuilder.order(searchParams.sort.by as any, {
@@ -429,6 +384,7 @@ function RouteComponent() {
         <CardTitle>Products Management</CardTitle>
         <Button
           variant={"default"}
+          size={"lg"}
           className="cursor-pointer"
           onClick={() => openSheet("product:create")}
         >
@@ -449,6 +405,16 @@ function RouteComponent() {
           </CardContent>
         </Card>
       </div>
+      {/* NEW: Render the confirmation dialog when a product is selected for deletion */}
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        onConfirm={() => deleteProduct(selectedProduct?.item_id as number)}
+        loading={isDeleting}
+        title={`Delete Product: ${selectedProduct?.name as string}`}
+        description="Are you sure you want to delete this product? This action cannot be undone. All associated data (like catalog and order associations) will also be deleted."
+        confirmText="Delete"
+      />
     </div>
   );
 }

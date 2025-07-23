@@ -1,3 +1,6 @@
+// /dashboard/category/ page component with delete functionality
+
+import { ConfirmDialog } from "@/components/app/ConfirmDialog"; // NEW: Import confirmation dialog
 import { CategoryStatsCards } from "@/components/card/category-stats-cards";
 import { DataTable } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
@@ -17,11 +20,19 @@ import {
   toRange,
 } from "@/lib/pagination";
 import { supabase } from "@/supabase";
-import { useQuery } from "@tanstack/react-query";
+import {
+  useMutation, // NEW: Import mutation hook
+  useQuery,
+  useQueryClient, // NEW: Import query client
+} from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 import { Calendar, Delete, Edit, Eye, Hash, Plus, Tag } from "lucide-react";
-import { useLayoutEffect, useMemo } from "react";
+import { useLayoutEffect, useMemo, useState } from "react"; // NEW: Import useState
+import { toast } from "sonner"; // NEW: Import toast for notifications
+
+// NEW: Define Category type for better type safety
+type Category = Database["public"]["Tables"]["item_category"]["Row"];
 
 export const Route = createFileRoute("/dashboard/category/")({
   component: RouteComponent,
@@ -30,6 +41,14 @@ export const Route = createFileRoute("/dashboard/category/")({
 function RouteComponent() {
   const { setBreadcrumbs } = useBreadcrumbs();
   const { openSheet } = useSheet();
+  const queryClient = useQueryClient(); // NEW: Get query client instance
+
+  // NEW: State for delete confirmation dialog
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(
+    null
+  );
+
   useLayoutEffect(() => {
     setBreadcrumbs([
       {
@@ -38,13 +57,42 @@ function RouteComponent() {
         href: "/dashboard",
       },
       {
-        id: "client",
+        id: "category", // Corrected ID
         label: "Categories",
         href: "/dashboard/category",
         isActive: true,
       },
     ]);
   }, []);
+
+  // NEW: Mutation for deleting a category
+  const { mutate: deleteCategory, isPending: isDeleting } = useMutation({
+    mutationFn: async (categoryId: number) => {
+      // Deleting a category will fail if `item.category_id` references it,
+      // and the foreign key constraint is set to RESTRICT or NO ACTION.
+      const { error } = await supabase
+        .from("item_category")
+        .delete()
+        .eq("category_id", categoryId);
+
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      toast.success(`Category "${selectedCategory?.name}" has been deleted.`);
+      queryClient.invalidateQueries({ queryKey }); // Invalidate query to refetch
+      setIsDeleteDialogOpen(false);
+      setSelectedCategory(null);
+    },
+    onError: (error) => {
+      toast.error("Failed to delete category", {
+        description:
+          "This usually means there are still products assigned to this category. Please reassign them before deleting.",
+      });
+      console.error("Delete category error:", error.message);
+      setIsDeleteDialogOpen(false);
+      setSelectedCategory(null);
+    },
+  });
 
   const { table, searchParams, queryKey } = useTable({
     columns: [
@@ -94,7 +142,6 @@ function RouteComponent() {
           />
         ),
         cell: ({ row }) => {
-          // This would come from a JOIN or separate query counting items in this category
           const itemCount =
             ((row.original as any)?.items?.[0].count as number) || 0;
 
@@ -113,22 +160,26 @@ function RouteComponent() {
       {
         id: "actions",
         cell: ({ row }) => {
+          // NEW: Get the full category object for actions
+          const category = row.original as Partial<Category>;
           const actions: RowActionItem<any>[] = [
             {
               icon: Eye,
-              label: "View ",
-              action: (row) => {
+              label: "View Category",
+              action: () => {
+                if (!category?.category_id) return null;
                 return openSheet("category:view", {
-                  id: row.getValue("category_id") as string,
+                  id: category?.category_id.toString(),
                 });
               },
             },
             {
               icon: Edit,
-              label: "Edit",
-              action: (row) => {
+              label: "Edit Category",
+              action: () => {
+                if (!category?.category_id) return null;
                 return openSheet("category:update", {
-                  id: row.getValue("category_id") as string,
+                  id: category.category_id.toString(),
                 });
               },
             },
@@ -137,9 +188,12 @@ function RouteComponent() {
             },
             {
               icon: Delete,
-              label: "Delete ",
-              action: (row) => {
-                console.log(row);
+              label: "Delete Category",
+              action: () => {
+                // NEW: Set selected category and open dialog
+                // @ts-ignore
+                setSelectedCategory(category);
+                setIsDeleteDialogOpen(true);
               },
             },
           ];
@@ -200,11 +254,6 @@ function RouteComponent() {
     baseQueryKey: ["category"],
   });
 
-  // const page = Number(searchParams.page) + 1;
-  // const limit = 10;
-  // const from = (page - 1) * limit;
-  // const to = from + limit - 1;
-
   const page = useMemo(
     () => parsePageParam(searchParams.page),
     [searchParams.page]
@@ -223,19 +272,17 @@ function RouteComponent() {
         .from("item_category")
         .select(
           `
-      *,
-      items:item(count)
-    `,
+          *,
+          items:item(count)
+        `,
           { count: "exact" }
         )
         .range(from, to);
 
       if (searchParams.search) {
-        // this ORs order_id = X
         if (!isNaN(searchParams.search as any)) {
           QueryBuilder.eq(`category_id`, searchParams.search as any);
-        }
-        if (searchParams.search) {
+        } else {
           QueryBuilder.ilike(`name`, `%${searchParams.search as any}%`);
         }
       }
@@ -249,17 +296,17 @@ function RouteComponent() {
 
       if (error) throw error;
 
-      // Transform the response: item is a nested object with count
-
       return buildPaginationResponse(data, searchParams, count);
     },
   });
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between py-3 bg-background/20 backdrop-blur-xl  md:px-8 px-4 min-h-[64px]">
         <CardTitle>Categories Management</CardTitle>
         <Button
           variant={"default"}
+          size={"lg"}
           className="cursor-pointer"
           onClick={() => {
             openSheet("category:create");
@@ -267,7 +314,7 @@ function RouteComponent() {
         >
           <Plus />
           Create Category
-        </Button>{" "}
+        </Button>
       </div>
       <div className="md:px-8 px-4">
         <CategoryStatsCards />
@@ -283,6 +330,19 @@ function RouteComponent() {
           </CardContent>
         </Card>
       </div>
+
+      {/* NEW: Render the confirmation dialog when a category is selected for deletion */}
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        onConfirm={() =>
+          deleteCategory(selectedCategory?.category_id as number)
+        }
+        loading={isDeleting}
+        title={`Delete Category: ${selectedCategory?.name as string}`}
+        description="Are you sure you want to delete this category? This action cannot be undone. Make sure no products are using this category before proceeding."
+        confirmText="Delete"
+      />
     </div>
   );
 }

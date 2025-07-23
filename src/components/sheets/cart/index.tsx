@@ -54,6 +54,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
+import { useTheme } from "@/context/theme";
 
 const formSchema = z.object({
   shipping_option: z.enum(["default", "custom"], {
@@ -89,14 +90,16 @@ interface CartSheetProps {
   onOpenChange: (open: boolean) => void;
   client: Client | null;
   recipientId: string | null;
+  campaignId: string | null;
   catalogInfo: Database["public"]["Tables"]["catalog"]["Row"] | null;
 }
 
 export function CartSheet({
   open,
   onOpenChange,
+  recipientId,
+  campaignId,
   client,
-  catalogInfo,
 }: CartSheetProps) {
   const {
     items,
@@ -108,6 +111,7 @@ export function CartSheet({
   } = useCart();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { theme } = useTheme();
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -146,8 +150,8 @@ export function CartSheet({
   };
 
   const onSubmit = async (data: FormData) => {
-    if (!client) {
-      toast.error("Client information not found");
+    if (!client || !campaignId || !recipientId) {
+      toast.error("Critical information missing. Cannot place order.");
       return;
     }
 
@@ -159,66 +163,55 @@ export function CartSheet({
     setIsSubmitting(true);
 
     try {
-      // Create order with client information
-      const orderData = {
-        client_id: client.client_id,
-        catalog_id: catalogInfo?.catalog_id, // You might need to determine this based on your business logic
-        status: "Pending" as const,
-        total_amount: totalPrice,
+      // Prepare the payload for the edge function
+      const orderPayload = {
+        campaign_id: campaignId,
+        recipient_id: recipientId,
+        items: items.map((item) => ({
+          item_id: item.item_id,
+          quantity: item.quantity,
+        })),
+        shipping_option: data.shipping_option,
         ...(data.shipping_option === "custom" && {
-          shipping_address_line1: data.shipping_address_line1 || null,
-          shipping_address_line2: data.shipping_address_line2 || null,
-          shipping_city: data.shipping_city || null,
-          shipping_state: data.shipping_state || null,
-          shipping_zip: data.shipping_zip
-            ? Number.parseInt(data.shipping_zip)
-            : null,
-          shipping_country: data.shipping_country || null,
-          shipping_notes: data.shipping_notes || null,
+          custom_shipping_address: {
+            shipping_address_line1: data.shipping_address_line1,
+            shipping_address_line2: data.shipping_address_line2,
+            shipping_city: data.shipping_city,
+            shipping_state: data.shipping_state,
+            shipping_zip: data.shipping_zip,
+            shipping_country: data.shipping_country,
+            shipping_notes: data.shipping_notes,
+          },
         }),
-        ...(data.shipping_option === "default" &&
-          client.address_line1 && {
-            shipping_address_line1: client.address_line1,
-            shipping_address_line2: client.address_line2,
-            shipping_city: client.city,
-            shipping_state: client.state,
-            shipping_zip: client.zip,
-            shipping_country: client.country,
-          }),
       };
 
-      const { data: newOrder, error: orderError } = await supabase
-        .from("order")
-        .insert(orderData as any)
-        .select()
-        .single();
+      // Invoke the secure edge function
+      const { data: responseData, error } = await supabase.functions.invoke(
+        "order",
+        { body: orderPayload }
+      );
 
-      if (orderError) throw orderError;
+      // The edge function now returns a structured error
+      if (error) {
+        console.log(error);
 
-      // Create order items
-      const orderTransactions = items.map((item) => ({
-        order_id: newOrder.order_id,
-        item_id: item.item_id,
-        quantity: item.quantity,
-        unit_price: item.retail_price,
-      }));
+        // This usually catches network errors or function crashes (500s)
+        throw error;
+      }
 
-      const { error: transactionError } = await supabase
-        .from("order_transactions")
-        .insert(orderTransactions);
-
-      if (transactionError) throw transactionError;
-
-      toast.success("Order submitted successfully!", {
-        description: "We'll contact you shortly to confirm your order.",
+      toast.success("Order Placed Successfully!", {
+        description: `Your Order ID is #${responseData.order_id}. We'll be in touch soon.`,
+        duration: 10 * 1000,
       });
 
       clearCart();
       onOpenChange(false);
-    } catch (error) {
+    } catch (error: any) {
+      const res = await error.context.json();
+
       console.error("Order submission error:", error);
       toast.error("Failed to submit order", {
-        description: "Please try again or contact us directly.",
+        description: res.error || "Please try again or contact us directly.",
       });
     } finally {
       setIsSubmitting(false);
@@ -227,6 +220,13 @@ export function CartSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
+      {theme == "light" && (
+        <style>
+          {`[data-sonner-toaster][data-sonner-theme=dark] [data-description] {
+          color: black !important;
+        }`}
+        </style>
+      )}
       <SheetContent className="w-full sm:max-w-lg flex flex-col [&>button:first-of-type]:hidden">
         <ScrollArea className="h-full">
           <div className="space-y-6 pb-6 mb-20">
@@ -364,7 +364,7 @@ export function CartSheet({
                             {/* Price and Quantity Controls */}
                             <div className="flex items-center justify-between">
                               <div className="text-sm font-medium">
-                                ${item.retail_price.toFixed(2)}
+                                ${item.price.toFixed(2)}
                               </div>
                               <div className="flex items-center gap-2">
                                 <Button
@@ -414,12 +414,10 @@ export function CartSheet({
                             {/* Item Total */}
                             <div className="flex justify-between items-center mt-2 pt-2 border-t border-border/50">
                               <span className="text-xs text-muted-foreground">
-                                {item.quantity} × $
-                                {item.retail_price.toFixed(2)}
+                                {item.quantity} × ${item.price.toFixed(2)}
                               </span>
                               <span className="font-semibold">
-                                $
-                                {(item.quantity * item.retail_price).toFixed(2)}
+                                ${(item.quantity * item.price).toFixed(2)}
                               </span>
                             </div>
                           </div>

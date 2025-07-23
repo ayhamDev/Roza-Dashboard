@@ -1,4 +1,7 @@
+// /dashboard/order/ page component with delete functionality
+
 import { AppStatusBadge, statusConfig } from "@/components/app/AppStatusBadge";
+import { ConfirmDialog } from "@/components/app/ConfirmDialog"; // NEW: Import confirmation dialog
 import { OrderStatsCards } from "@/components/card/order-stats-cards";
 import { DataTable } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
@@ -18,12 +21,16 @@ import {
   toRange,
 } from "@/lib/pagination";
 import { supabase } from "@/supabase";
-import { useQuery } from "@tanstack/react-query";
+import {
+  useMutation, // NEW: Import mutation hook
+  useQuery,
+  useQueryClient, // NEW: Import query client
+} from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 import {
   Calendar,
-  Delete,
+  Delete, // NEW: Import Delete icon
   DollarSign,
   Edit,
   ExternalLink,
@@ -34,7 +41,11 @@ import {
   Tag,
   User,
 } from "lucide-react";
-import { useLayoutEffect, useMemo } from "react";
+import { useLayoutEffect, useMemo, useState } from "react"; // NEW: Import useState
+import { toast } from "sonner"; // NEW: Import toast for notifications
+
+// NEW: Define Order type for better type safety
+type Order = Database["public"]["Tables"]["order"]["Row"];
 
 export const Route = createFileRoute("/dashboard/order/")({
   component: RouteComponent,
@@ -43,6 +54,11 @@ export const Route = createFileRoute("/dashboard/order/")({
 function RouteComponent() {
   const { setBreadcrumbs } = useBreadcrumbs();
   const { openSheet } = useSheet();
+  const queryClient = useQueryClient(); // NEW: Get query client instance
+
+  // NEW: State for delete confirmation dialog
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   useLayoutEffect(() => {
     setBreadcrumbs([
@@ -52,13 +68,37 @@ function RouteComponent() {
         href: "/dashboard",
       },
       {
-        id: "client",
+        id: "order", // Corrected id
         label: "Orders",
         href: "/dashboard/order",
         isActive: true,
       },
     ]);
   }, []);
+
+  // NEW: Mutation for deleting an order
+  const { mutate: deleteOrder, isPending: isDeleting } = useMutation({
+    mutationFn: async (orderId: number) => {
+      // Assuming ON DELETE CASCADE is set for order_transactions
+      const { error } = await supabase
+        .from("order")
+        .delete()
+        .eq("order_id", orderId);
+
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      toast.success(`Order #${selectedOrder?.order_id} has been deleted.`);
+      queryClient.invalidateQueries({ queryKey }); // Invalidate query to refetch
+      setIsDeleteDialogOpen(false);
+      setSelectedOrder(null);
+    },
+    onError: (error) => {
+      toast.error(`Failed to delete order: ${error.message}`);
+      setIsDeleteDialogOpen(false);
+      setSelectedOrder(null);
+    },
+  });
 
   const { table, searchParams, queryKey } = useTable({
     columns: [
@@ -99,7 +139,7 @@ function RouteComponent() {
                       openSheet("client:view", { id: row.original.client_id });
                     }}
                   >
-                    <ExternalLink />
+                    <ExternalLink className="h-4 w-4" />
                   </Button>
                 </span>
                 <span className="text-xs text-muted-foreground truncate max-w-[200px]">
@@ -134,8 +174,7 @@ function RouteComponent() {
                 }}
               >
                 <span className="truncate max-w-[120px]">{catalog?.name}</span>
-
-                <ExternalLink />
+                <ExternalLink className="h-4 w-4" />
               </Button>
             </div>
           );
@@ -176,22 +215,24 @@ function RouteComponent() {
       {
         id: "actions",
         cell: ({ row }) => {
+          // NEW: Get the full order object for actions
+          const order = row.original as Order;
           const actions: RowActionItem<any>[] = [
             {
               icon: Eye,
-              label: "View ",
-              action: (row) => {
+              label: "View Order",
+              action: () => {
                 return openSheet("order:view", {
-                  id: row.getValue("order_id") as string,
+                  id: order.order_id.toString(),
                 });
               },
             },
             {
               icon: Edit,
-              label: "Edit",
-              action: (row) => {
+              label: "Edit Order",
+              action: () => {
                 return openSheet("order:update", {
-                  id: row.getValue("order_id") as string,
+                  id: order.order_id.toString(),
                 });
               },
             },
@@ -200,9 +241,11 @@ function RouteComponent() {
             },
             {
               icon: Delete,
-              label: "Delete ",
-              action: (row) => {
-                console.log(row);
+              label: "Delete Order",
+              action: () => {
+                // NEW: Set selected order and open dialog
+                setSelectedOrder(order);
+                setIsDeleteDialogOpen(true);
               },
             },
           ];
@@ -257,11 +300,6 @@ function RouteComponent() {
     baseQueryKey: ["order"],
   });
 
-  // const page = Number(searchParams.page) + 1;
-  // const limit = 10;
-  // const from = (page - 1) * limit;
-  // const to = from + limit - 1;
-
   const page = useMemo(
     () => parsePageParam(searchParams.page),
     [searchParams.page]
@@ -287,7 +325,6 @@ function RouteComponent() {
         )
         .range(from, to);
       if (searchParams.search) {
-        // this ORs order_id = X
         if (!isNaN(searchParams.search as any)) {
           QueryBuilder.eq(`order_id`, searchParams.search as any);
         }
@@ -312,8 +349,6 @@ function RouteComponent() {
       }
 
       if (searchParams.filter?.["filter[status]"]) {
-        console.log(searchParams.filter?.["filter[status]"]);
-
         QueryBuilder.in("status", [
           searchParams.filter?.["filter[status]"].split(",") as any,
         ]);
@@ -336,6 +371,7 @@ function RouteComponent() {
         <CardTitle>Orders Management</CardTitle>
         <Button
           variant={"default"}
+          size={"lg"}
           className="cursor-pointer"
           onClick={() => openSheet("order:create")}
         >
@@ -361,7 +397,7 @@ function RouteComponent() {
                         icon: statusConfig[key as keyof typeof statusConfig]
                           .icon,
                       };
-                    }), //statusConfig
+                    }),
                   ],
                 },
               ]}
@@ -373,6 +409,16 @@ function RouteComponent() {
           </CardContent>
         </Card>
       </div>
+      {/* NEW: Render the confirmation dialog when an order is selected for deletion */}
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        onConfirm={() => deleteOrder(selectedOrder?.order_id as number)}
+        loading={isDeleting}
+        title={`Delete Order: #${selectedOrder?.order_id}`}
+        description="Are you sure you want to delete this order? All of its associated data (like transaction items) will also be removed. This action cannot be undone."
+        confirmText="Delete"
+      />
     </div>
   );
 }

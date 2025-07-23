@@ -55,7 +55,9 @@ export function OrderStatsCards() {
       const totalRevenue =
         recentData?.reduce(
           (sum, o) =>
-            o.status != "Pending" ? sum + (o.total_amount || 0) : sum,
+            o.status !== "Cancelled" && o.status != "Pending"
+              ? sum + (o.total_amount || 0)
+              : sum,
           0
         ) || 0;
       const recentOrders = recentData?.length || 0;

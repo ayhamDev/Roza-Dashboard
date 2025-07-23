@@ -112,13 +112,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         />
       </SidebarContent>
       <SidebarFooter>
-        <AppUser
-          user={{
-            avatar: "https://github.com/shadcn.png",
-            email: "tM8Yv@example.com",
-            name: "Shadcn",
-          }}
-        />
+        <AppUser />
       </SidebarFooter>
     </Sidebar>
   );

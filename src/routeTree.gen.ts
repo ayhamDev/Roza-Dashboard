@@ -22,7 +22,6 @@ import { Route as DashboardCategoryIndexRouteImport } from './routes/dashboard/c
 import { Route as DashboardCatalogIndexRouteImport } from './routes/dashboard/catalog/index'
 import { Route as DashboardCampaignIndexRouteImport } from './routes/dashboard/campaign/index'
 import { Route as CatalogCampaign_idIndexRouteImport } from './routes/catalog/$campaign_id/index'
-import { Route as CatalogCampaign_idIndexcopyRouteImport } from './routes/catalog/$campaign_id/index copy'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -89,12 +88,6 @@ const CatalogCampaign_idIndexRoute = CatalogCampaign_idIndexRouteImport.update({
   path: '/',
   getParentRoute: () => CatalogCampaign_idRouteRoute,
 } as any)
-const CatalogCampaign_idIndexcopyRoute =
-  CatalogCampaign_idIndexcopyRouteImport.update({
-    id: '/index copy',
-    path: '/index copy',
-    getParentRoute: () => CatalogCampaign_idRouteRoute,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -103,7 +96,6 @@ export interface FileRoutesByFullPath {
   '/catalog/$campaign_id': typeof CatalogCampaign_idRouteRouteWithChildren
   '/catalog': typeof CatalogIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
-  '/catalog/$campaign_id/index copy': typeof CatalogCampaign_idIndexcopyRoute
   '/catalog/$campaign_id/': typeof CatalogCampaign_idIndexRoute
   '/dashboard/campaign': typeof DashboardCampaignIndexRoute
   '/dashboard/catalog': typeof DashboardCatalogIndexRoute
@@ -117,7 +109,6 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/catalog': typeof CatalogIndexRoute
   '/dashboard': typeof DashboardIndexRoute
-  '/catalog/$campaign_id/index copy': typeof CatalogCampaign_idIndexcopyRoute
   '/catalog/$campaign_id': typeof CatalogCampaign_idIndexRoute
   '/dashboard/campaign': typeof DashboardCampaignIndexRoute
   '/dashboard/catalog': typeof DashboardCatalogIndexRoute
@@ -134,7 +125,6 @@ export interface FileRoutesById {
   '/catalog/$campaign_id': typeof CatalogCampaign_idRouteRouteWithChildren
   '/catalog/': typeof CatalogIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
-  '/catalog/$campaign_id/index copy': typeof CatalogCampaign_idIndexcopyRoute
   '/catalog/$campaign_id/': typeof CatalogCampaign_idIndexRoute
   '/dashboard/campaign/': typeof DashboardCampaignIndexRoute
   '/dashboard/catalog/': typeof DashboardCatalogIndexRoute
@@ -152,7 +142,6 @@ export interface FileRouteTypes {
     | '/catalog/$campaign_id'
     | '/catalog'
     | '/dashboard/'
-    | '/catalog/$campaign_id/index copy'
     | '/catalog/$campaign_id/'
     | '/dashboard/campaign'
     | '/dashboard/catalog'
@@ -166,7 +155,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/catalog'
     | '/dashboard'
-    | '/catalog/$campaign_id/index copy'
     | '/catalog/$campaign_id'
     | '/dashboard/campaign'
     | '/dashboard/catalog'
@@ -182,7 +170,6 @@ export interface FileRouteTypes {
     | '/catalog/$campaign_id'
     | '/catalog/'
     | '/dashboard/'
-    | '/catalog/$campaign_id/index copy'
     | '/catalog/$campaign_id/'
     | '/dashboard/campaign/'
     | '/dashboard/catalog/'
@@ -293,13 +280,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CatalogCampaign_idIndexRouteImport
       parentRoute: typeof CatalogCampaign_idRouteRoute
     }
-    '/catalog/$campaign_id/index copy': {
-      id: '/catalog/$campaign_id/index copy'
-      path: '/index copy'
-      fullPath: '/catalog/$campaign_id/index copy'
-      preLoaderRoute: typeof CatalogCampaign_idIndexcopyRouteImport
-      parentRoute: typeof CatalogCampaign_idRouteRoute
-    }
   }
 }
 
@@ -328,13 +308,11 @@ const DashboardRouteRouteWithChildren = DashboardRouteRoute._addFileChildren(
 )
 
 interface CatalogCampaign_idRouteRouteChildren {
-  CatalogCampaign_idIndexcopyRoute: typeof CatalogCampaign_idIndexcopyRoute
   CatalogCampaign_idIndexRoute: typeof CatalogCampaign_idIndexRoute
 }
 
 const CatalogCampaign_idRouteRouteChildren: CatalogCampaign_idRouteRouteChildren =
   {
-    CatalogCampaign_idIndexcopyRoute: CatalogCampaign_idIndexcopyRoute,
     CatalogCampaign_idIndexRoute: CatalogCampaign_idIndexRoute,
   }
 

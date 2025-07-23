@@ -134,7 +134,9 @@ export function DashboardOverviewStats() {
       const totalRevenue =
         ordersResult.data?.reduce(
           (sum, order) =>
-            order.status != "Pending" ? sum + (order.total_amount || 0) : sum,
+            order.status != "Pending" && order.status != "Cancelled"
+              ? sum + (order.total_amount || 0)
+              : sum,
           0
         ) || 0;
       const completedOrders =
@@ -180,13 +182,17 @@ export function DashboardOverviewStats() {
       const recentRevenue =
         recentOrders.data?.reduce(
           (sum, order) =>
-            order.status != "Pending" ? sum + (order.total_amount || 0) : sum,
+            order.status != "Pending" && order.status != "Cancelled"
+              ? sum + (order.total_amount || 0)
+              : sum,
           0
         ) || 0;
       const previousRevenue =
         previousOrders.data?.reduce(
           (sum, order) =>
-            order.status != "Pending" ? sum + (order.total_amount || 0) : sum,
+            order.status != "Pending" && order.status != "Cancelled"
+              ? sum + (order.total_amount || 0)
+              : sum,
           0
         ) || 0;
       const revenueTrend = calculateTrend(recentRevenue, previousRevenue);

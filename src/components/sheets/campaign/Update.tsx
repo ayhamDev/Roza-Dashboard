@@ -454,8 +454,13 @@ const UpdateCampaignSheet = (props: UpdateCampaignSheetProps) => {
       props?.onOpenChange?.(false);
 
       // Invalidate queries with same keys as view component
-      qc.invalidateQueries({ queryKey: campaignQueryKey });
-      qc.invalidateQueries({ queryKey: recipientsQueryKey });
+      qc.invalidateQueries({
+        predicate: (query) => query.queryKey?.[0] === "campaign",
+      });
+      qc.invalidateQueries({
+        predicate: (query) => query.queryKey?.[0] === "campaign-recipients",
+      });
+      console.log(true);
     } catch (err) {
       toast.error("Something went wrong", {
         description:

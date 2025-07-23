@@ -12,7 +12,7 @@ import {
 export interface CartItem {
   item_id: number;
   name: string;
-  retail_price: number;
+  price: number;
   quantity: number;
   image_url: string | null;
   category_name?: string;
@@ -58,7 +58,7 @@ const calculateTotals = (
 ): { totalItems: number; totalPrice: number } => {
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
   const totalPrice = items.reduce(
-    (sum, item) => sum + item.retail_price * item.quantity,
+    (sum, item) => sum + item.price * item.quantity,
     0
   );
   return { totalItems, totalPrice };

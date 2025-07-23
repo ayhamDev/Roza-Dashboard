@@ -812,7 +812,8 @@ const UpdateOrderSheet = (props: UpdateOrderSheetProps) => {
     } catch (err) {
       toast.error("Something went wrong", {
         description:
-          err instanceof Error ? err.message : "Unknown error occurred",
+          // @ts-ignore
+          err?.message || "Unknown error occurred",
       });
     } finally {
       setIsSaving(false);

@@ -119,7 +119,7 @@ interface Product {
   item_id: number;
   name: string;
   description?: string;
-  retail_price: number;
+  wholesale_price: number;
   stock_quantity: number;
   is_catalog_visible: boolean;
   image_url?: string;
@@ -395,7 +395,7 @@ const CreateOrderSheet = (props: CreateOrderSheetProps) => {
             item_id,
             name,
             description,
-            retail_price,
+            wholesale_price,
             stock_quantity,
             is_catalog_visible,
             image_url
@@ -521,7 +521,7 @@ const CreateOrderSheet = (props: CreateOrderSheetProps) => {
     const newOrderItem: OrderItem = {
       item_id: product.item_id,
       quantity: 1,
-      unit_price: product.retail_price,
+      unit_price: product.wholesale_price,
       product: product,
     };
 
@@ -534,17 +534,15 @@ const CreateOrderSheet = (props: CreateOrderSheetProps) => {
     try {
       setIsSaving(true);
 
-      // Validation
+      // --- 1. Validation ---
       if (!selectedClientId) {
         toast.error("Please select a client");
         return;
       }
-
       if (!selectedCatalogId) {
         toast.error("Please select a catalog");
         return;
       }
-
       if (orderItems.length === 0) {
         toast.error("Please add at least one item to the order");
         return;
@@ -552,7 +550,7 @@ const CreateOrderSheet = (props: CreateOrderSheetProps) => {
 
       const totalAmount = orderSummary?.total || 0;
 
-      // Create order
+      // --- 2. Create Order ---
       const { data: newOrder, error: orderError } = await supabase
         .from("order")
         .insert({
@@ -573,42 +571,81 @@ const CreateOrderSheet = (props: CreateOrderSheetProps) => {
         .select()
         .single();
 
-      if (orderError) {
-        throw orderError;
+      if (orderError) throw orderError;
+
+      // --- 3. FIX: Fetch catalog_transition_ids and validate items ---
+      // This step replicates the logic from your working edge function.
+      const itemIdsInOrder = orderItems.map((item) => item.item_id);
+
+      const { data: transitions, error: transitionsError } = await supabase
+        .from("catalog_transitions")
+        .select("catalog_transition_id, item_id")
+        .eq("catalog_id", selectedCatalogId)
+        .in("item_id", itemIdsInOrder);
+
+      if (transitionsError) throw transitionsError;
+
+      // Validate that all items in the cart are still valid for the selected catalog
+      if (transitions.length !== itemIdsInOrder.length) {
+        const foundIds = new Set(transitions.map((t) => t.item_id));
+        const missingItems = orderItems.filter(
+          (item) => !foundIds.has(item.item_id)
+        );
+        const missingItemNames = missingItems
+          .map((item) => item.product.name)
+          .join(", ");
+        toast.error("Item validation failed", {
+          description: `The following items are not in the selected catalog: ${missingItemNames}. Please remove them to continue.`,
+        });
+        // Note: Here we don't throw an error, we just stop processing.
+        // You could also rollback the created order if needed.
+        return;
       }
 
-      // Create order items
-      const orderTransactions = await Promise.all(
-        orderItems.map(async (item) => {
-          // @ts-ignore
-          const { data: transition } = await supabase
-            .from("catalog_transitions")
-            .select("catalog_transition_id")
-            .eq("catalog_id", selectedCatalogId)
-            .eq("item_id", item.item_id)
-            .single();
-
-          return {
-            order_id: newOrder.order_id,
-            item_id: item.item_id,
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-          };
-        })
+      // Create a map for easy lookup: { item_id => catalog_transition_id }
+      const transitionIdMap = new Map(
+        transitions.map((t) => [t.item_id, t.catalog_transition_id])
       );
+
+      // --- 4. FIX: Create order transaction payload with correct foreign key ---
+      const orderTransactionsPayload = orderItems.map((item) => {
+        const catalogTransitionId = transitionIdMap.get(item.item_id);
+
+        if (!catalogTransitionId) {
+          // This should not happen due to the validation above, but it's a good safeguard
+          throw new Error(
+            `Could not find a valid catalog link for item: ${item.product.name}`
+          );
+        }
+
+        return {
+          order_id: newOrder.order_id,
+          // THIS IS THE KEY FIX: The 'item_id' column in 'order_transactions'
+          // actually expects a 'catalog_transition_id'.
+          item_id: catalogTransitionId,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+        };
+      });
 
       const { error: insertError } = await supabase
         .from("order_transactions")
-        .insert(orderTransactions);
+        .insert(orderTransactionsPayload);
 
       if (insertError) {
+        // If an error still occurs, it's a critical failure.
+        // You might want to delete the `newOrder` here for consistency.
+        console.error(
+          "CRITICAL: Order created but transactions failed.",
+          insertError
+        );
         throw insertError;
       }
 
+      // --- 5. Success ---
       toast.success("Order created successfully!");
       props?.onOpenChange?.(false);
 
-      // Reset form
       form.reset();
       setOrderItems([]);
       setSelectedClientId(0);
@@ -618,10 +655,9 @@ const CreateOrderSheet = (props: CreateOrderSheetProps) => {
         predicate: (query) =>
           (query.queryKey?.[0] as string)?.startsWith?.("order"),
       });
-    } catch (err) {
-      toast.error("Something went wrong", {
-        description:
-          err instanceof Error ? err.message : "Unknown error occurred",
+    } catch (err: any) {
+      toast.error("Failed to create order", {
+        description: err?.message || "An unknown error occurred.",
       });
     } finally {
       setIsSaving(false);
@@ -690,36 +726,16 @@ const CreateOrderSheet = (props: CreateOrderSheetProps) => {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="Pending">
-                                <div className="flex items-center gap-2">
-                                  <statusConfig.Pending.icon />
-                                  <span>Pending</span>
-                                </div>
-                              </SelectItem>
-                              <SelectItem value="Confirmed">
-                                <div className="flex items-center gap-2">
-                                  <statusConfig.Confirmed.icon />
-                                  <span>Confirmed</span>
-                                </div>
-                              </SelectItem>
-                              <SelectItem value="Shipped">
-                                <div className="flex items-center gap-2">
-                                  <statusConfig.Shipped.icon />
-                                  <span>Shipped</span>
-                                </div>
-                              </SelectItem>
-                              <SelectItem value="Delivered">
-                                <div className="flex items-center gap-2">
-                                  <statusConfig.Delivered.icon />
-                                  <span>Delivered</span>
-                                </div>
-                              </SelectItem>
-                              <SelectItem value="Cancelled">
-                                <div className="flex items-center gap-2">
-                                  <statusConfig.Cancelled.icon />
-                                  <span>Cancelled</span>
-                                </div>
-                              </SelectItem>
+                              {Object.entries(statusConfig).map(
+                                ([statusKey, config]) => (
+                                  <SelectItem key={statusKey} value={statusKey}>
+                                    <div className="flex items-center gap-2">
+                                      <config.icon />
+                                      <span>{config.label}</span>
+                                    </div>
+                                  </SelectItem>
+                                )
+                              )}
                             </SelectContent>
                           </Select>
                           <FormMessage />
@@ -1070,7 +1086,7 @@ const CreateOrderSheet = (props: CreateOrderSheetProps) => {
                                       {product.name}
                                     </p>
                                     <p className="text-xs text-muted-foreground">
-                                      ${product.retail_price}
+                                      ${product.wholesale_price.toFixed(2)}
                                     </p>
                                   </div>
                                   <Plus className="h-4 w-4 text-muted-foreground" />

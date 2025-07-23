@@ -1,3 +1,6 @@
+// /dashboard/catalog/ page component with delete functionality
+
+import { ConfirmDialog } from "@/components/app/ConfirmDialog"; // NEW: Import confirmation dialog
 import { CatalogStatsCards } from "@/components/card/catalog-stats-cards";
 import { DataTable } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
@@ -17,7 +20,11 @@ import {
   toRange,
 } from "@/lib/pagination";
 import { supabase } from "@/supabase";
-import { useQuery } from "@tanstack/react-query";
+import {
+  useMutation, // NEW: Import mutation hook
+  useQuery,
+  useQueryClient, // NEW: Import query client
+} from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 import {
@@ -31,11 +38,16 @@ import {
   Hash,
   Plus,
 } from "lucide-react";
-import { useLayoutEffect, useMemo } from "react";
+import { useLayoutEffect, useMemo, useState } from "react"; // NEW: Import useState
+import { toast } from "sonner"; // NEW: Import toast for notifications
+
+// NEW: Define Catalog type for better type safety
+type Catalog = Database["public"]["Tables"]["catalog"]["Row"];
 
 export const Route = createFileRoute("/dashboard/catalog/")({
   component: RouteComponent,
 });
+
 const getStatusInfo = (status: string) => {
   switch (status) {
     case "enabled":
@@ -59,6 +71,12 @@ const getStatusInfo = (status: string) => {
 function RouteComponent() {
   const { setBreadcrumbs } = useBreadcrumbs();
   const { openSheet } = useSheet();
+  const queryClient = useQueryClient(); // NEW: Get query client instance
+
+  // NEW: State for delete confirmation dialog
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedCatalog, setSelectedCatalog] = useState<Catalog | null>(null);
+
   useLayoutEffect(() => {
     setBreadcrumbs([
       {
@@ -67,13 +85,42 @@ function RouteComponent() {
         href: "/dashboard",
       },
       {
-        id: "client",
+        id: "catalog", // Corrected id
         label: "Catalogs",
         href: "/dashboard/catalog",
         isActive: true,
       },
     ]);
   }, []);
+
+  // NEW: Mutation for deleting a catalog
+  const { mutate: deleteCatalog, isPending: isDeleting } = useMutation({
+    mutationFn: async (catalogId: number) => {
+      // Note: Deleting a catalog will also delete its associated items in `catalog_transitions`
+      // if ON DELETE CASCADE is set, which is recommended.
+      const { error } = await supabase
+        .from("catalog")
+        .delete()
+        .eq("catalog_id", catalogId);
+
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      toast.success(`Catalog "${selectedCatalog?.name}" has been deleted.`);
+      queryClient.invalidateQueries({ queryKey }); // Invalidate query to refetch
+      setIsDeleteDialogOpen(false);
+      setSelectedCatalog(null);
+    },
+    onError: (error) => {
+      toast.error("Failed to delete catalog", {
+        description:
+          "This can happen if the catalog is being used by an existing order or campaign. Please remove its associations first.",
+      });
+      console.error("Delete catalog error:", error.message);
+      setIsDeleteDialogOpen(false);
+      setSelectedCatalog(null);
+    },
+  });
 
   const { table, searchParams, queryKey } = useTable({
     columns: [
@@ -92,7 +139,6 @@ function RouteComponent() {
           );
         },
       },
-
       {
         accessorKey: "name",
         header: ({ column }) => (
@@ -140,7 +186,6 @@ function RouteComponent() {
           />
         ),
         cell: ({ row }) => {
-          // This would come from a JOIN or separate query counting items in this category
           const itemCount =
             ((row.original as any)?.items?.[0]?.count as number) || 0;
 
@@ -162,10 +207,11 @@ function RouteComponent() {
           <DataTableColumnHeader icon={Eye} column={column} title="Status" />
         ),
         cell: ({ row }) => {
+          const status = row.getValue("status") as string;
           return (
             <Badge variant={"secondary"} className="flex items-center gap-2">
-              {getStatusInfo(row.getValue("status") as string).icon}
-              {getStatusInfo(row.getValue("status") as string).label}
+              {getStatusInfo(status).icon}
+              {getStatusInfo(status).label}
             </Badge>
           );
         },
@@ -173,22 +219,24 @@ function RouteComponent() {
       {
         id: "actions",
         cell: ({ row }) => {
+          // NEW: Get the full catalog object for actions
+          const catalog = row.original;
           const actions: RowActionItem<any>[] = [
             {
               icon: Eye,
-              label: "View ",
-              action: (row) => {
+              label: "View Catalog",
+              action: () => {
                 return openSheet("catalog:view", {
-                  id: row.getValue("catalog_id") as string,
+                  id: catalog.catalog_id.toString(),
                 });
               },
             },
             {
               icon: Edit,
-              label: "Edit",
-              action: (row) => {
+              label: "Edit Catalog",
+              action: () => {
                 return openSheet("catalog:update", {
-                  id: row.getValue("catalog_id") as string,
+                  id: catalog.catalog_id.toString(),
                 });
               },
             },
@@ -197,9 +245,12 @@ function RouteComponent() {
             },
             {
               icon: Delete,
-              label: "Delete ",
-              action: (row) => {
-                console.log(row);
+              label: "Delete Catalog",
+              action: () => {
+                // NEW: Set selected catalog and open dialog
+                // @ts-ignore
+                setSelectedCatalog(catalog);
+                setIsDeleteDialogOpen(true);
               },
             },
           ];
@@ -257,7 +308,6 @@ function RouteComponent() {
         },
       },
     ],
-
     baseQueryKey: ["catalog"],
   });
 
@@ -286,11 +336,9 @@ function RouteComponent() {
         )
         .range(from, to);
       if (searchParams.search) {
-        // this ORs order_id = X
         if (!isNaN(searchParams.search as any)) {
           QueryBuilder.eq(`catalog_id`, searchParams.search as any);
-        }
-        if (searchParams.search) {
+        } else {
           QueryBuilder.ilike(`name`, `%${searchParams.search as any}%`);
         }
       }
@@ -307,12 +355,14 @@ function RouteComponent() {
       return buildPaginationResponse(data, searchParams, count);
     },
   });
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between py-3 bg-background/20 backdrop-blur-xl  md:px-8 px-4 min-h-[64px]">
         <CardTitle>Catalogs Management</CardTitle>
         <Button
           variant={"default"}
+          size={"lg"}
           className="cursor-pointer"
           onClick={() => {
             openSheet("catalog:create");
@@ -336,6 +386,16 @@ function RouteComponent() {
           </CardContent>
         </Card>
       </div>
+      {/* NEW: Render the confirmation dialog when a catalog is selected for deletion */}
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        onConfirm={() => deleteCatalog(selectedCatalog?.catalog_id as number)}
+        loading={isDeleting}
+        title={`Delete Catalog: ${selectedCatalog?.name as string}`}
+        description="Are you sure you want to delete this catalog? All associated data (like the catalog transactions , order transactions linked to it) will also be removed. This action cannot be undone."
+        confirmText="Delete"
+      />
     </div>
   );
 }

@@ -19,7 +19,13 @@ import {
   ShoppingCart,
   Twitter,
 } from "lucide-react";
-import { parseAsInteger, parseAsString, useQueryStates } from "nuqs";
+import {
+  parseAsBoolean,
+  parseAsInteger,
+  parseAsString,
+  useQueryState,
+  useQueryStates,
+} from "nuqs";
 import {
   useEffect,
   useState,
@@ -70,6 +76,7 @@ interface Item {
   name: string;
   description: string | null;
   image_url: string | null;
+  price: number;
   retail_price: number;
   wholesale_price: number;
   category_id: number | null;
@@ -174,7 +181,10 @@ function CatalogContent() {
 
   const [scrollY, setScrollY] = useState(0);
   const { addItem, items, isInCart, getItemQuantity } = useCart();
-  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isCartOpen, setIsCartOpen] = useQueryState(
+    "cart",
+    parseAsBoolean.withDefault(false).withOptions({ history: "push" })
+  );
 
   const {
     data: edgeFunctionData,
@@ -236,9 +246,11 @@ function CatalogContent() {
   }, []);
 
   const totalPages =
-    itemsData?.items?.length == 10
+    urlState.page > 1
       ? Math.ceil(itemsData.totalCount / ITEMS_PER_PAGE)
-      : 0;
+      : itemsData?.items?.length == 10
+        ? Math.ceil(itemsData.totalCount / ITEMS_PER_PAGE)
+        : 0;
 
   const categoryOptions = useMemo(
     () => [
@@ -253,7 +265,7 @@ function CatalogContent() {
       addItem({
         item_id: item.item_id,
         name: item.name,
-        retail_price: item.retail_price,
+        price: item.price,
         image_url: item.image_url,
         category_name: item.category_name,
         stock_quantity: item.in_stock ? 999 : 0,
@@ -265,7 +277,7 @@ function CatalogContent() {
   const isInitialLoading = edgeFunctionLoading && !edgeFunctionData;
   const isContentLoading = isPending || edgeFunctionFetching;
 
-  if (edgeFunctionError) {
+  if (edgeFunctionError || !recipientId || !campaign_id) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="max-w-md w-full">
@@ -273,7 +285,8 @@ function CatalogContent() {
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Error Loading Catalog</AlertTitle>
             <AlertDescription className="mt-2">
-              {edgeFunctionError.message}
+              {edgeFunctionError?.message ||
+                "Missing recipient ID or campaign ID."}
             </AlertDescription>
           </Alert>
         </div>
@@ -336,6 +349,7 @@ function CatalogContent() {
           onOpenChange={setIsCartOpen}
           client={campaignRecipient?.client || null}
           recipientId={recipientId}
+          campaignId={campaign_id}
           // --- FIX: Pass null if catalogInfo is undefined to satisfy prop type ---
           catalogInfo={catalogInfo || null}
         />
@@ -508,7 +522,8 @@ function CatalogContent() {
               </Button>
             </div>
           ) : (
-            itemsData.items.map((item) => (
+            // @ts-ignore
+            itemsData.items.map((item: Item & { price: number }) => (
               <Card
                 key={item.item_id}
                 className="hover:shadow-lg pt-0 transition-all duration-300 hover:-translate-y-1 overflow-hidden relative flex flex-col"
@@ -545,7 +560,7 @@ function CatalogContent() {
                         </CardTitle>
                         <CardDescription>{item.description}</CardDescription>
                         <div className="text-2xl font-bold text-primary">
-                          ${item.retail_price}
+                          ${item.price}
                         </div>
                       </div>
                     </CardContent>
