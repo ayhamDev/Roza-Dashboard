@@ -22,6 +22,7 @@ import { Route as DashboardCategoryIndexRouteImport } from './routes/dashboard/c
 import { Route as DashboardCatalogIndexRouteImport } from './routes/dashboard/catalog/index'
 import { Route as DashboardCampaignIndexRouteImport } from './routes/dashboard/campaign/index'
 import { Route as CatalogCampaign_idIndexRouteImport } from './routes/catalog/$campaign_id/index'
+import { Route as DashboardCatalogCatalog_idIndexRouteImport } from './routes/dashboard/catalog/$catalog_id/index'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -88,6 +89,12 @@ const CatalogCampaign_idIndexRoute = CatalogCampaign_idIndexRouteImport.update({
   path: '/',
   getParentRoute: () => CatalogCampaign_idRouteRoute,
 } as any)
+const DashboardCatalogCatalog_idIndexRoute =
+  DashboardCatalogCatalog_idIndexRouteImport.update({
+    id: '/catalog/$catalog_id/',
+    path: '/catalog/$catalog_id/',
+    getParentRoute: () => DashboardRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -103,6 +110,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/client': typeof DashboardClientIndexRoute
   '/dashboard/order': typeof DashboardOrderIndexRoute
   '/dashboard/product': typeof DashboardProductIndexRoute
+  '/dashboard/catalog/$catalog_id': typeof DashboardCatalogCatalog_idIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -116,6 +124,7 @@ export interface FileRoutesByTo {
   '/dashboard/client': typeof DashboardClientIndexRoute
   '/dashboard/order': typeof DashboardOrderIndexRoute
   '/dashboard/product': typeof DashboardProductIndexRoute
+  '/dashboard/catalog/$catalog_id': typeof DashboardCatalogCatalog_idIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -132,6 +141,7 @@ export interface FileRoutesById {
   '/dashboard/client/': typeof DashboardClientIndexRoute
   '/dashboard/order/': typeof DashboardOrderIndexRoute
   '/dashboard/product/': typeof DashboardProductIndexRoute
+  '/dashboard/catalog/$catalog_id/': typeof DashboardCatalogCatalog_idIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -149,6 +159,7 @@ export interface FileRouteTypes {
     | '/dashboard/client'
     | '/dashboard/order'
     | '/dashboard/product'
+    | '/dashboard/catalog/$catalog_id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -162,6 +173,7 @@ export interface FileRouteTypes {
     | '/dashboard/client'
     | '/dashboard/order'
     | '/dashboard/product'
+    | '/dashboard/catalog/$catalog_id'
   id:
     | '__root__'
     | '/'
@@ -177,6 +189,7 @@ export interface FileRouteTypes {
     | '/dashboard/client/'
     | '/dashboard/order/'
     | '/dashboard/product/'
+    | '/dashboard/catalog/$catalog_id/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -280,6 +293,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CatalogCampaign_idIndexRouteImport
       parentRoute: typeof CatalogCampaign_idRouteRoute
     }
+    '/dashboard/catalog/$catalog_id/': {
+      id: '/dashboard/catalog/$catalog_id/'
+      path: '/catalog/$catalog_id'
+      fullPath: '/dashboard/catalog/$catalog_id'
+      preLoaderRoute: typeof DashboardCatalogCatalog_idIndexRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
   }
 }
 
@@ -291,6 +311,7 @@ interface DashboardRouteRouteChildren {
   DashboardClientIndexRoute: typeof DashboardClientIndexRoute
   DashboardOrderIndexRoute: typeof DashboardOrderIndexRoute
   DashboardProductIndexRoute: typeof DashboardProductIndexRoute
+  DashboardCatalogCatalog_idIndexRoute: typeof DashboardCatalogCatalog_idIndexRoute
 }
 
 const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
@@ -301,6 +322,7 @@ const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardClientIndexRoute: DashboardClientIndexRoute,
   DashboardOrderIndexRoute: DashboardOrderIndexRoute,
   DashboardProductIndexRoute: DashboardProductIndexRoute,
+  DashboardCatalogCatalog_idIndexRoute: DashboardCatalogCatalog_idIndexRoute,
 }
 
 const DashboardRouteRouteWithChildren = DashboardRouteRoute._addFileChildren(

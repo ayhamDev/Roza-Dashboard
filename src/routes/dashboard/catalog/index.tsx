@@ -25,7 +25,7 @@ import {
   useQuery,
   useQueryClient, // NEW: Import query client
 } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 import {
   Activity,
@@ -35,6 +35,7 @@ import {
   Edit,
   Eye,
   FileEdit,
+  FileText,
   Hash,
   Plus,
 } from "lucide-react";
@@ -71,8 +72,8 @@ const getStatusInfo = (status: string) => {
 function RouteComponent() {
   const { setBreadcrumbs } = useBreadcrumbs();
   const { openSheet } = useSheet();
+  const navigate = useNavigate();
   const queryClient = useQueryClient(); // NEW: Get query client instance
-
   // NEW: State for delete confirmation dialog
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedCatalog, setSelectedCatalog] = useState<Catalog | null>(null);
@@ -237,6 +238,15 @@ function RouteComponent() {
               action: () => {
                 return openSheet("catalog:update", {
                   id: catalog.catalog_id.toString(),
+                });
+              },
+            },
+            {
+              icon: FileText,
+              label: "Generate Catalog PDF",
+              action: () => {
+                navigate({
+                  to: `/dashboard/catalog/${catalog.catalog_id}`,
                 });
               },
             },
