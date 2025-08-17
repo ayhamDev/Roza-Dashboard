@@ -47,6 +47,7 @@ import {
   Check,
   ChevronDown,
   DollarSign,
+  Hash,
   ImageIcon,
   Link,
   Loader2,
@@ -121,6 +122,8 @@ const UpdateProductSheet = (props: UpdateProductSheetProps) => {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  // NEW: State to track if the user explicitly removes the image
+  const [imageWasRemoved, setImageWasRemoved] = useState(false);
 
   // Fetch existing product data
   const { data: product, isLoading } = useQuery({
@@ -208,21 +211,20 @@ const UpdateProductSheet = (props: UpdateProductSheetProps) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
     if (!file.type.startsWith("image/")) {
       toast.error("Please select a valid image file");
       return;
     }
 
-    // Validate file size (5MB limit)
     if (file.size > 5 * 1024 * 1024) {
       toast.error("Image size must be less than 5MB");
       return;
     }
 
     setSelectedImage(file);
+    // NEW: Ensure the removal flag is reset if a new image is chosen
+    setImageWasRemoved(false);
 
-    // Create preview
     const reader = new FileReader();
     reader.onload = (e) => {
       setImagePreview(e.target?.result as string);
@@ -249,16 +251,27 @@ const UpdateProductSheet = (props: UpdateProductSheetProps) => {
 
       let imagePath: string | null = product?.image_url || null;
 
-      // Upload new image if selected
+      // --- KEY LOGIC FOR IMAGE HANDLING ---
+
+      // SCENARIO 1: A new image has been selected to replace the old one (or add a new one).
       if (selectedImage) {
-        // Delete old image if exists
+        // If an old image exists, delete it from storage first.
         if (product?.image_url) {
           await supabase.storage.from("images").remove([product.image_url]);
         }
+        // Upload the new image and get its path.
         imagePath = await uploadImage(selectedImage);
       }
+      // SCENARIO 2: The user explicitly removed the existing image without selecting a new one.
+      else if (imageWasRemoved && product?.image_url) {
+        // Delete the old image from storage.
+        await supabase.storage.from("images").remove([product.image_url]);
+        // Set the database path to null.
+        imagePath = null;
+      }
+      // SCENARIO 3: The image was not changed. `imagePath` remains the original `product.image_url`.
 
-      // Update product
+      // Update product in the database
       const { error } = await supabase
         .from("item")
         .update({
@@ -270,7 +283,7 @@ const UpdateProductSheet = (props: UpdateProductSheetProps) => {
           wholesale_price: Number.parseFloat(data.wholesale_price),
           stock_quantity: Number.parseInt(data.stock_quantity),
           is_catalog_visible: data.is_catalog_visible,
-          image_url: imagePath,
+          image_url: imagePath, // Use the determined image path
           updated_at: new Date().toISOString(),
         })
         .eq("item_id", id as any);
@@ -362,7 +375,7 @@ const UpdateProductSheet = (props: UpdateProductSheetProps) => {
                             <img
                               src={imagePreview || "/placeholder.svg"}
                               alt="Product preview"
-                              className="w-full max-w-xs aspect-square object-cover rounded-lg border border-border"
+                              className="w-full max-w-xs aspect-square object-contain rounded-lg border border-border"
                             />
                             <Button
                               type="button"
@@ -371,6 +384,8 @@ const UpdateProductSheet = (props: UpdateProductSheetProps) => {
                               onClick={() => {
                                 setSelectedImage(null);
                                 setImagePreview(null);
+                                // NEW: Set flag to true on removal
+                                setImageWasRemoved(true);
                               }}
                             >
                               <X className="h-4 w-4" />
@@ -405,13 +420,23 @@ const UpdateProductSheet = (props: UpdateProductSheetProps) => {
 
                   <Separator />
 
-                  {/* Basic Information Section */}
+                  {/* Other form sections remain unchanged... */}
                   <div className="space-y-6 px-6">
                     <h3 className="text-lg font-semibold flex items-center gap-2">
                       <Package className="h-5 w-5" />
                       Basic Information
                     </h3>
-
+                    <FormItem className="grid grid-cols-3 gap-4 items-start space-y-0">
+                      <FormLabel className="text-right col-span-1 font-medium text-muted-foreground">
+                        Product ID
+                      </FormLabel>
+                      <div className="space-y-2 col-span-2">
+                        <Badge variant={"secondary"} className="text-md">
+                          <Hash />
+                          {product.item_id}
+                        </Badge>
+                      </div>
+                    </FormItem>
                     {/* Product Name */}
                     <FormField
                       control={form.control}

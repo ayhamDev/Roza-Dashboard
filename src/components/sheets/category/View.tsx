@@ -224,7 +224,9 @@ const ViewCategorySheet = (props: ViewCategorySheetProps) => {
               <div className="flex items-center gap-4 text-xs">
                 <div className="flex items-center gap-1">
                   <DollarSign className="h-3 w-3 text-muted-foreground" />
-                  <span className="font-medium">${product.retail_price}</span>
+                  <span className="font-medium">
+                    ${product.wholesale_price}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1">
                   <ShoppingCart className="h-3 w-3 text-muted-foreground" />

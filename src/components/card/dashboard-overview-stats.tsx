@@ -148,7 +148,7 @@ export function DashboardOverviewStats() {
       // Calculate additional metrics
       const lowStockProducts =
         productsResult.data?.filter(
-          (product) => (product.stock_quantity || 0) <= 5
+          (product) => (product.stock_quantity || 0) <= 10
         ).length || 0;
       const pendingOrders =
         ordersResult.data?.filter((order) => order.status === "Pending")
@@ -322,7 +322,7 @@ export function DashboardOverviewStats() {
       title: "Low Stock Alert",
       value: stats?.lowStockProducts || 0,
       icon: AlertTriangle,
-      description: "Products with ≤5 items",
+      description: "Products with ≤10 items",
       color: "text-red-600 dark:text-red-400",
       bgColor: "bg-red-50 dark:bg-red-950/50",
       isAlert: true,

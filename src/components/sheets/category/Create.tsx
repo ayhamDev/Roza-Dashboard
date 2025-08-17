@@ -282,7 +282,9 @@ const CreateCategorySheet = (
               <div className="flex items-center gap-4 text-xs">
                 <div className="flex items-center gap-1">
                   <DollarSign className="h-3 w-3 text-muted-foreground" />
-                  <span className="font-medium">${product.retail_price}</span>
+                  <span className="font-medium">
+                    ${product.wholesale_price}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1">
                   <ShoppingCart className="h-3 w-3 text-muted-foreground" />
@@ -459,7 +461,7 @@ const CreateCategorySheet = (
                                       {product.name}
                                     </p>
                                     <p className="text-xs text-muted-foreground">
-                                      ${product.retail_price}
+                                      ${product.wholesale_price}
                                     </p>
                                   </div>
                                   <Plus className="h-4 w-4 text-muted-foreground" />

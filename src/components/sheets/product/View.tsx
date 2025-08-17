@@ -201,7 +201,7 @@ const ViewProductSheet = (props: ViewProductSheetProps) => {
                           "/placeholder.svg?height=400&width=400"
                         }
                         alt={product.name || "Product image"}
-                        className="object-cover object-center w-full h-full"
+                        className="object-contain object-center w-full h-full"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
                           target.src = "/placeholder.svg?height=400&width=400";

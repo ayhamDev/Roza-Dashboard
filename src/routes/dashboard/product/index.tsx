@@ -1,6 +1,6 @@
 // /dashboard/product/ page component with delete functionality
 
-import { ConfirmDialog } from "@/components/app/ConfirmDialog"; // NEW: Import confirmation dialog
+import { ConfirmDialog } from "@/components/app/ConfirmDialog";
 import { ProductStatsCards } from "@/components/card/product-stats-cards";
 import { DataTable } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
@@ -21,11 +21,7 @@ import {
   toRange,
 } from "@/lib/pagination";
 import { supabase } from "@/supabase";
-import {
-  useMutation, // NEW: Import mutation hook
-  useQuery,
-  useQueryClient, // NEW: Import query client
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 import {
@@ -42,10 +38,10 @@ import {
   Plus,
   Tag,
 } from "lucide-react";
-import { useLayoutEffect, useMemo, useState } from "react"; // NEW: Import useState
-import { toast } from "sonner"; // NEW: Import toast for notifications
+import { useLayoutEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
-// NEW: Define Product type for better type safety
+// Define Product type for better type safety
 type Product = Database["public"]["Tables"]["item"]["Row"];
 
 export const Route = createFileRoute("/dashboard/product/")({
@@ -55,9 +51,9 @@ export const Route = createFileRoute("/dashboard/product/")({
 function RouteComponent() {
   const { setBreadcrumbs } = useBreadcrumbs();
   const { openSheet } = useSheet();
-  const queryClient = useQueryClient(); // NEW: Get query client instance
+  const queryClient = useQueryClient();
 
-  // NEW: State for delete confirmation dialog
+  // State for delete confirmation dialog
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
@@ -69,36 +65,59 @@ function RouteComponent() {
         href: "/dashboard",
       },
       {
-        id: "product", // Corrected ID
+        id: "product",
         label: "Products",
-        href: "/dashboard/product", // Corrected href
+        href: "/dashboard/product",
         isActive: true,
       },
     ]);
   }, []);
 
-  // NEW: Mutation for deleting a product (item)
+  // Mutation for deleting a product (item) and its associated image
   const { mutate: deleteProduct, isPending: isDeleting } = useMutation({
-    mutationFn: async (productId: number) => {
-      // Note: Deleting an item might fail if it's referenced in `order_transactions`
-      // and ON DELETE is not set to CASCADE. This error is handled below.
-      const { error } = await supabase
+    mutationFn: async (product: Product) => {
+      // --- KEY LOGIC ---
+      // 1. First, check if an image_url exists for the product.
+      // This handles the case where a product might not have an image.
+      if (product.image_url) {
+        // If an image exists, attempt to remove it from Supabase Storage.
+        // Replace 'images' with your actual storage bucket name if it's different.
+        const { error: storageError } = await supabase.storage
+          .from("images")
+          .remove([product.image_url]);
+
+        // If image deletion fails, throw an error to prevent deleting the database record.
+        if (storageError) {
+          throw new Error(
+            `Failed to delete product image: ${storageError.message}`
+          );
+        }
+      }
+
+      // 2. After successfully handling the image, delete the product from the database.
+      const { error: dbError } = await supabase
         .from("item")
         .delete()
-        .eq("item_id", productId);
+        .eq("item_id", product.item_id);
 
-      if (error) throw new Error(error.message);
+      // If the database deletion fails (e.g., due to a foreign key constraint),
+      // this error will be caught by the onError handler.
+      if (dbError) {
+        throw new Error(dbError.message);
+      }
     },
     onSuccess: () => {
       toast.success(`Product "${selectedProduct?.name}" has been deleted.`);
-      queryClient.invalidateQueries({ queryKey }); // Invalidate query to refetch
+      queryClient.invalidateQueries({ queryKey }); // Refetch the product list
       setIsDeleteDialogOpen(false);
       setSelectedProduct(null);
     },
     onError: (error) => {
+      // Display a more specific error message from the thrown exception.
       toast.error("Failed to delete product", {
         description:
-          "This can happen if the product is part of an existing order or catalog. Please remove its associations first.",
+          error.message ||
+          "This can happen if it is part of an existing order.",
       });
       console.error("Delete product error:", error.message);
       setIsDeleteDialogOpen(false);
@@ -145,12 +164,12 @@ function RouteComponent() {
                 <img
                   src={getImageUrl(imageUrl) || "/placeholder.svg"}
                   alt={name}
-                  width={64}
-                  height={64}
-                  className="rounded-md object-cover border"
+                  width={75}
+                  height={75}
+                  className="rounded-md object-contain border h-[75px] w-[75px]"
                 />
               ) : (
-                <div className="w-16 h-16 bg-muted rounded-md flex items-center justify-center">
+                <div className="w-[75px] h-[75px] bg-muted rounded-md flex items-center justify-center">
                   <ImageIcon className="h-6 w-6 text-muted-foreground" />
                 </div>
               )}
@@ -200,16 +219,16 @@ function RouteComponent() {
         },
       },
       {
-        accessorKey: "retail_price",
+        accessorKey: "wholesale_price",
         header: ({ column }) => (
           <DataTableColumnHeader
             icon={DollarSign}
             column={column}
-            title="Retail Price"
+            title="Wholesale Price"
           />
         ),
         cell: ({ row }) => {
-          const price = row.getValue("retail_price") as number;
+          const price = row.getValue("wholesale_price") as number;
           const formatted = price?.toLocaleString(undefined, {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
@@ -274,7 +293,6 @@ function RouteComponent() {
       {
         id: "actions",
         cell: ({ row }) => {
-          // NEW: Get the full product object for actions
           const product = row.original as Product;
           const actions: RowActionItem<any>[] = [
             {
@@ -302,7 +320,6 @@ function RouteComponent() {
               icon: Delete,
               label: "Delete Product",
               action: () => {
-                // NEW: Set selected product and open dialog
                 setSelectedProduct(product);
                 setIsDeleteDialogOpen(true);
               },
@@ -405,14 +422,19 @@ function RouteComponent() {
           </CardContent>
         </Card>
       </div>
-      {/* NEW: Render the confirmation dialog when a product is selected for deletion */}
+      {/* Render the confirmation dialog for deletion */}
       <ConfirmDialog
         isOpen={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
-        onConfirm={() => deleteProduct(selectedProduct?.item_id as number)}
+        onConfirm={() => {
+          // Add a null check for robustness before calling the mutation
+          if (selectedProduct) {
+            deleteProduct(selectedProduct);
+          }
+        }}
         loading={isDeleting}
-        title={`Delete Product: ${selectedProduct?.name as string}`}
-        description="Are you sure you want to delete this product? This action cannot be undone. All associated data (like catalog and order associations) will also be deleted."
+        title={`Delete Product: ${selectedProduct?.name || ""}`}
+        description="Are you sure you want to delete this product? If it has an image, the image will also be permanently deleted. This action cannot be undone."
         confirmText="Delete"
       />
     </div>

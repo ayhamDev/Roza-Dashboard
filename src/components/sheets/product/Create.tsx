@@ -290,7 +290,7 @@ const CreateProductSheet = (
                           <img
                             src={imagePreview || "/placeholder.svg"}
                             alt="Product preview"
-                            className="w-full max-w-xs aspect-square object-cover rounded-lg border border-border"
+                            className="w-full max-w-xs aspect-square object-contain rounded-lg border border-border"
                           />
                           <Button
                             type="button"
