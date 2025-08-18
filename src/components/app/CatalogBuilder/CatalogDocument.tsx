@@ -130,8 +130,7 @@ export interface CatalogDocumentProps {
 
 // --- CONSTANTS & UTILITIES ---
 const PRODUCTS_PER_PAGE = 9;
-const PLACEHOLDER_IMAGE =
-  "https://www.prokerala.com/images/shop/placeholder.png";
+const PLACEHOLDER_IMAGE = "https://placehold.co/300?text=No+Image";
 const chunkArray = <T,>(array: T[], size: number): T[][] => {
   const result: T[][] = [];
   for (let i = 0; i < array.length; i += size) {
