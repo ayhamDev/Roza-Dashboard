@@ -412,6 +412,10 @@ const UpdateCatalogSheet = (props: UpdateCatalogSheetProps) => {
           (query.queryKey?.[0] as string)?.startsWith?.("product") ||
           (query.queryKey?.[0] as string)?.startsWith?.("item"),
       });
+
+      qc.removeQueries({
+        predicate: (query) => query.queryKey[0] == "catalog-pdf",
+      });
     } catch (err) {
       toast.error("Something went wrong", {
         description:
@@ -425,8 +429,6 @@ const UpdateCatalogSheet = (props: UpdateCatalogSheetProps) => {
   // Add product to selected list
   const addProduct = (product: Product) => {
     setSelectedProducts((prev) => [...prev, product]);
-    setCommandOpen(false);
-    setProductSearchQuery("");
   };
 
   // Remove product from selected list
@@ -700,7 +702,11 @@ const UpdateCatalogSheet = (props: UpdateCatalogSheetProps) => {
                       </h3>
 
                       {/* Add Product Command */}
-                      <Popover open={commandOpen} onOpenChange={setCommandOpen}>
+                      <Popover
+                        modal={true}
+                        open={commandOpen}
+                        onOpenChange={setCommandOpen}
+                      >
                         <PopoverTrigger asChild>
                           <Button type="button" size="sm">
                             <Plus className="h-4 w-4 mr-2" />
@@ -729,7 +735,7 @@ const UpdateCatalogSheet = (props: UpdateCatalogSheetProps) => {
                                 {availableProducts.map((product) => (
                                   <CommandItem
                                     key={product.item_id}
-                                    value={product.name}
+                                    value={`${product.item_id}_${product.name}`}
                                     onSelect={() => addProduct(product)}
                                     className="flex items-center gap-3 p-3"
                                   >
