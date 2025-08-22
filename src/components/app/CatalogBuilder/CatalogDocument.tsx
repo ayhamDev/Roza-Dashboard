@@ -126,6 +126,7 @@ export interface CatalogDocumentProps {
   theme: Theme;
   tocEntries: TocEntry[];
   coverLayout: CoverLayout;
+  isPreviewMode: boolean;
 }
 
 // --- CONSTANTS & UTILITIES ---
@@ -163,7 +164,12 @@ const getStyles = (theme: Theme) =>
     page: {
       fontFamily: theme.fontFamily.body,
       fontSize: 9,
-      padding: 30,
+      // --- MODIFICATION START ---
+      // Adjusted padding to make space for the new fixed header and footer (page number)
+      paddingTop: 80,
+      paddingHorizontal: 30,
+      paddingBottom: 50,
+      // --- MODIFICATION END ---
       backgroundColor: theme.content.backgroundColor,
     },
     pageNumber: {
@@ -621,19 +627,37 @@ const getStyles = (theme: Theme) =>
       width: 25,
       color: theme.toc.headerColor,
     },
-    catHeaderPage: {
-      flexDirection: "column",
-      justifyContent: "center",
+    // --- MODIFICATION START ---
+    // This style is no longer needed as the separate category page is removed.
+    // catHeaderPage: { ... }
+    // --- MODIFICATION END ---
+
+    // --- MODIFICATION START ---
+    // New styles for the fixed header on each product page
+    pageHeader: {
+      position: "absolute",
+      top: 30,
+      left: 30,
+      right: 30,
+      flexDirection: "row",
+      justifyContent: "space-between",
       alignItems: "center",
-      backgroundColor: theme.content.categoryHeaderBackgroundColor,
+      borderBottomWidth: 2,
+      borderBottomColor: theme.toc.borderColor,
+      paddingBottom: 10,
     },
-    catHeaderTitle: {
+    pageHeaderLogo: {
+      width: 80,
+      height: 30,
+      objectFit: "contain",
+    },
+    pageHeaderText: {
       fontFamily: theme.fontFamily.heading,
-      fontSize: 28,
-      textAlign: "center",
+      fontSize: 14,
+      color: theme.toc.headerColor,
       textTransform: "uppercase",
-      color: theme.content.categoryHeaderTextColor,
     },
+    // --- MODIFICATION END ---
 
     // --- Product Grid & Card ---
     productGrid: {
@@ -690,6 +714,7 @@ export const CatalogDocument: React.FC<CatalogDocumentProps> = ({
   theme,
   tocEntries,
   coverLayout,
+  isPreviewMode, // <-- DESTRUCTURE THE NEW PROP
 }) => {
   const styles = getStyles(theme);
 
@@ -1478,21 +1503,38 @@ export const CatalogDocument: React.FC<CatalogDocumentProps> = ({
         />
       </Page>
 
+      {/* --- MODIFICATION START --- */}
       {/* --- Categories & Products --- */}
+      {/* The rendering logic is updated to remove the separate category page */}
+      {/* and add a fixed header to each product page. */}
       {categories.map((category: CategoryWithProducts) => {
         const productChunks = chunkArray(category.products, PRODUCTS_PER_PAGE);
+        // If a category has no products, it won't be rendered.
+        if (productChunks.length === 0) {
+          return null;
+        }
+
         return (
           <React.Fragment key={category.category_id}>
-            <Page size="A4" style={styles.catHeaderPage} break>
-              <Text style={styles.catHeaderTitle}>{category.name}</Text>
-              <Text
-                style={styles.pageNumber}
-                render={({ pageNumber }) => pageNumber}
-                fixed
-              />
-            </Page>
             {productChunks.map((chunk, chunkIndex) => (
-              <Page key={chunkIndex} size="A4" style={styles.page}>
+              <Page
+                key={chunkIndex}
+                size="A4"
+                style={styles.page}
+                // The `break` prop ensures that each new category starts on a fresh page.
+                break={chunkIndex === 0}
+              >
+                {/* This is the new fixed header that appears on every product page. */}
+                <View style={styles.pageHeader} fixed>
+                  <Text style={styles.pageHeaderText}>{category.name}</Text>
+                  <Image
+                    cache={true}
+                    src={info.logoUrl || `${location.origin}${Logo}`}
+                    style={styles.pageHeaderLogo}
+                  />
+                </View>
+
+                {/* The existing product grid remains the same. */}
                 <View style={styles.productGrid}>
                   {chunk.map((product) => (
                     <View
@@ -1502,9 +1544,10 @@ export const CatalogDocument: React.FC<CatalogDocumentProps> = ({
                     >
                       <View style={styles.productImageContainer}>
                         <Image
-                          cache={true}
+                          cache={false}
                           src={
-                            getImageUrl(product.image_url) || PLACEHOLDER_IMAGE
+                            getImageUrl(product.image_url, !isPreviewMode) ||
+                            PLACEHOLDER_IMAGE
                           }
                           style={styles.productImage}
                         />
@@ -1522,6 +1565,8 @@ export const CatalogDocument: React.FC<CatalogDocumentProps> = ({
                     </View>
                   ))}
                 </View>
+
+                {/* The fixed page number also remains. */}
                 <Text
                   style={styles.pageNumber}
                   render={({ pageNumber }) => pageNumber}
@@ -1532,6 +1577,7 @@ export const CatalogDocument: React.FC<CatalogDocumentProps> = ({
           </React.Fragment>
         );
       })}
+      {/* --- MODIFICATION END --- */}
 
       {/* --- BACK COVER --- */}
       <Page size="A4" style={styles.backCover}>

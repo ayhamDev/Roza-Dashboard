@@ -3,7 +3,7 @@
 // --- STEP 1: Imports ---
 import { useQuery } from "@tanstack/react-query";
 import { wrap, type Remote } from "comlink";
-import { AlertTriangle, Download, Loader2 } from "lucide-react";
+import { AlertTriangle, Download, Eye, Loader2 } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -40,6 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
 // --- Supabase & Utilities ---
@@ -480,7 +481,7 @@ async function fetchCatalogData(
     .from("item")
     .select("*, item_category(*)")
     .in("item_id", itemIds)
-    .eq("is_catalog_visible", true); // <-- This new line filters the results
+    .eq("is_catalog_visible", true);
 
   if (itemsError)
     throw new Error(`Could not fetch item details: ${itemsError.message}`);
@@ -543,6 +544,7 @@ function usePdfWorker(props: CatalogDocumentProps) {
     return () => {
       if (newUrl) URL.revokeObjectURL(newUrl);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props]);
 
   return { pdfUrl, isWorkerLoading };
@@ -561,16 +563,17 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
     address: "123 Design Street, Suite 456, Art City, 78901",
   });
   const { setBreadcrumbs } = useBreadcrumbs();
-
   const [theme, setTheme] = useState<Theme>(() => ({
     fontFamily: { heading: "Helvetica-Bold", body: "Helvetica" },
     ...colorPresets[0].theme,
   }));
-
   const [selectedPreset, setSelectedPreset] = useState<string>(
     colorPresets[0].name
   );
   const [coverLayout, setCoverLayout] = useState<CoverLayout>("minimalist-arc");
+
+  const [isPreviewMode, setIsPreviewMode] = useState(true);
+  const [showPreviewAlert, setShowPreviewAlert] = useState(false);
 
   const debouncedInfo = useDebounce(info, 500);
   const debouncedTheme = useDebounce(theme, 500);
@@ -610,13 +613,19 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
   };
 
   const tocEntries = useMemo(() => {
-    if (!categories) return [];
-    let pageCounter = 2;
-    return categories.map((category) => {
-      const entry = { name: category.name, page: pageCounter + 1 };
-      pageCounter += 1 + Math.ceil(category.products.length / 9);
-      return entry;
-    });
+    if (!categories || categories.length === 0) return [];
+    const PRODUCTS_PER_PAGE = 9;
+    const entries = [];
+    let currentPage = 3;
+    for (const category of categories) {
+      if (category.products.length === 0) continue;
+      entries.push({ name: category.name, page: currentPage });
+      const pagesForCategory = Math.ceil(
+        category.products.length / PRODUCTS_PER_PAGE
+      );
+      currentPage += pagesForCategory;
+    }
+    return entries;
   }, [categories]);
 
   const documentProps = useMemo<CatalogDocumentProps>(
@@ -626,13 +635,27 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
       theme: debouncedTheme,
       tocEntries,
       coverLayout: debouncedLayout,
+      isPreviewMode,
     }),
-    [categories, debouncedInfo, debouncedTheme, tocEntries, debouncedLayout]
+    [
+      categories,
+      debouncedInfo,
+      debouncedTheme,
+      tocEntries,
+      debouncedLayout,
+      isPreviewMode,
+    ]
   );
 
   const { pdfUrl, isWorkerLoading } = usePdfWorker(documentProps);
 
   const handleDownload = useCallback(() => {
+    if (isPreviewMode) {
+      setShowPreviewAlert(true);
+      return;
+    }
+    setShowPreviewAlert(false);
+
     if (!pdfUrl) return;
     const link = document.createElement("a");
     link.href = pdfUrl;
@@ -640,26 +663,27 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  }, [pdfUrl, catalogData?.catalogName, info.year]);
+  }, [pdfUrl, catalogData?.catalogName, info.year, isPreviewMode]);
+
+  useEffect(() => {
+    if (showPreviewAlert) {
+      const timer = setTimeout(() => setShowPreviewAlert(false), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [showPreviewAlert]);
+
   useLayoutEffect(() => {
     setBreadcrumbs([
-      {
-        id: "dashboard",
-        label: "Dashboard",
-        href: "/dashboard",
-      },
-      {
-        id: "catalog",
-        label: "Catalogs",
-        href: "/dashboard/catalog",
-      },
+      { id: "dashboard", label: "Dashboard", href: "/dashboard" },
+      { id: "catalog", label: "Catalogs", href: "/dashboard/catalog" },
       {
         id: "catalog_name",
         label: catalogData ? catalogData?.catalogName : "Loading...",
         isActive: true,
       },
     ]);
-  }, [catalogData]);
+  }, [catalogData, setBreadcrumbs]);
+
   if (isFetchingData)
     return (
       <div className="flex justify-center items-center h-screen">
@@ -684,14 +708,46 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
   ];
 
   return (
-    <div className="flex h-[calc(100vh-61px)] font-sans bg-muted/40">
-      <aside className="w-[420px] h-full flex-shrink-0">
+    <div className="flex h-[calc(100vh-61px)] font-sans bg-muted/40 relative">
+      {(isWorkerLoading || isFetchingData) && (
+        <div className="absolute  inset-0 dark:bg-white/70 bg-accent-foreground/50 backdrop-blur-md z-50 flex flex-col items-center justify-center rounded-md">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
+          <p className="text-muted-foreground font-medium">
+            {isFetchingData ? "Fetching Data..." : "Generating Pdf..."}
+          </p>
+        </div>
+      )}
+      <aside className="w-[420px] h-full flex-shrink-0 relative">
         <Card className="h-full rounded-none border-0 border-r flex flex-col">
           <CardHeader>
             <CardTitle>Catalog Editor</CardTitle>
             <CardDescription>{catalogData?.catalogName}</CardDescription>
           </CardHeader>
-          <CardContent className="flex-grow overflow-y-auto pr-4">
+
+          <div className="px-6 py-4 border-b border-t bg-amber-50 border-amber-200">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label
+                  htmlFor="preview-mode"
+                  className="text-base font-semibold text-amber-900 flex items-center"
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  Fast Preview Mode
+                </Label>
+                <p className="text-xs text-amber-800">
+                  Disables product images for faster updates. Turn off for final
+                  download.
+                </p>
+              </div>
+              <Switch
+                id="preview-mode"
+                checked={isPreviewMode}
+                onCheckedChange={setIsPreviewMode}
+              />
+            </div>
+          </div>
+
+          <CardContent className="flex-grow overflow-y-auto pr-4 pt-6">
             <Accordion
               type="multiple"
               defaultValue={["item-1", "item-2", "item-3"]}
@@ -1125,16 +1181,31 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
             </Accordion>
           </CardContent>
           {categories.length > 0 && (
-            <CardFooter className="pt-4 border-t">
+            <CardFooter className="pt-4 border-t flex-col items-start">
+              {showPreviewAlert && (
+                <Alert variant="destructive" className="mb-4 w-full">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Preview Mode is On</AlertTitle>
+                  <AlertDescription>
+                    Please turn off "Fast Preview Mode" before downloading the
+                    final PDF.
+                  </AlertDescription>
+                </Alert>
+              )}
               <Button
                 onClick={handleDownload}
                 disabled={isWorkerLoading || !pdfUrl}
                 className="w-full"
               >
-                {isWorkerLoading ? (
+                {isWorkerLoading && isPreviewMode ? (
                   <>
                     <Loader2 size={16} className="animate-spin mr-2" />
-                    Generating PDF...
+                    Updating Preview...
+                  </>
+                ) : isWorkerLoading && !isPreviewMode ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin mr-2" />
+                    Generating Final PDF...
                   </>
                 ) : (
                   <>
@@ -1148,22 +1219,6 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
       </aside>
 
       <main className="flex-grow h-full p-4 relative">
-        {isWorkerLoading && !isFetchingData && (
-          <div className="absolute inset-0 bg-white/70 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-md">
-            <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
-            <p className="text-muted-foreground font-medium">
-              Generating Pdf...
-            </p>
-          </div>
-        )}
-        {isFetchingData && !isWorkerLoading && (
-          <div className="absolute inset-0 bg-white/70 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-md">
-            <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
-            <p className="text-muted-foreground font-medium">
-              Fetching Data...
-            </p>
-          </div>
-        )}
         <div className="w-full h-full rounded-md border overflow-hidden">
           {pdfUrl ? (
             <iframe
