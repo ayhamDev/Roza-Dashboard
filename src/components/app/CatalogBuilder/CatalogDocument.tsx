@@ -2,7 +2,7 @@
 /* eslint-disable no-eval */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
-// --- SHIMS FOR REACT FAST REFRESH IN WEB WORKER ---
+// --- SHIMS FOR REACT FAST REFRESH IN WEB WORKer ---
 (window as any).$RefreshReg$ = () => {
   /**/
 };
@@ -158,26 +158,24 @@ export interface CatalogDocumentProps {
   theme: Theme;
   tocEntries: TocEntry[];
   coverLayout: CoverLayout;
-  // --- MODIFICATION START ---
-  // Add productColumns to the props interface
   productColumns: number;
-  // --- MODIFICATION END ---
   isPreviewMode: boolean;
 }
 
 // --- CONSTANTS & UTILITIES ---
-// --- MODIFICATION START ---
-// ROWS_PER_PAGE is now a named constant for clarity
-const ROWS_PER_PAGE = 3;
-// --- MODIFICATION END ---
 const PLACEHOLDER_IMAGE = "https://placehold.co/300?text=No+Image";
-const chunkArray = <T,>(array: T[], size: number): T[][] => {
+
+// --- FIX START ---
+// Changed from an arrow function to a standard function declaration
+// to avoid ambiguity with JSX syntax in .tsx files.
+function chunkArray<T>(array: T[], size: number): T[][] {
   const result: T[][] = [];
   for (let i = 0; i < array.length; i += size) {
     result.push(array.slice(i, i + size));
   }
   return result;
-};
+}
+// --- FIX END ---
 
 // --- FONT REGISTRATION ---
 Font.register({
@@ -198,10 +196,7 @@ Font.register({
 });
 
 // --- DYNAMIC STYLESHEET ---
-// --- MODIFICATION START ---
-// The getStyles function now accepts productColumns to dynamically set widths
 const getStyles = (theme: Theme, productColumns: number) => {
-  // Helper function to determine card width based on the number of columns
   const getProductCardWidth = () => {
     switch (productColumns) {
       case 2:
@@ -217,7 +212,6 @@ const getStyles = (theme: Theme, productColumns: number) => {
   };
 
   return StyleSheet.create({
-    // --- MODIFICATION END ---
     page: {
       fontFamily: theme.fontFamily.body,
       fontSize: 9,
@@ -231,7 +225,7 @@ const getStyles = (theme: Theme, productColumns: number) => {
       fontSize: 12,
       bottom: 30,
       right: 30,
-      color: "#9CA3AF",
+      color: "black",
       fontFamily: theme.fontFamily.body,
     },
     largeLogo: {
@@ -685,15 +679,17 @@ const getStyles = (theme: Theme, productColumns: number) => {
     // --- Page Header ---
     pageHeader: {
       position: "absolute",
-      top: 30,
-      left: 30,
-      right: 30,
+      top: 0,
+      left: 0,
+      right: 0,
+      paddingHorizontal: 30,
+      paddingVertical: 15,
       flexDirection: "row",
       justifyContent: "space-between",
-      alignItems: "center",
+      alignItems: "baseline",
       borderBottomWidth: 2,
       borderBottomColor: theme.toc.borderColor,
-      paddingBottom: 10,
+      backgroundColor: theme.content.categoryHeaderBackgroundColor,
     },
     pageHeaderLogo: {
       width: 80,
@@ -702,63 +698,88 @@ const getStyles = (theme: Theme, productColumns: number) => {
     },
     pageHeaderText: {
       fontFamily: theme.fontFamily.heading,
-      fontSize: 14,
+      fontSize: 16,
       color: theme.toc.headerColor,
       textTransform: "uppercase",
     },
 
-    // --- Product Grid & Card ---
+    // --- Product Grid & Card (MODIFIED SECTION) ---
     productGrid: {
       flexDirection: "row",
       flexWrap: "wrap",
       justifyContent: "space-between",
     },
-    // --- MODIFICATION START ---
-    // The width is now calculated dynamically
     productCard: {
       width: getProductCardWidth(),
       flexDirection: "column",
       marginBottom: 15,
+      borderWidth: 1,
+      borderColor: "#F3F4F6", // Light grey border
+      borderRadius: 6,
+      backgroundColor: "#FFFFFF",
+      padding: 8,
     },
-    // --- MODIFICATION END ---
-    productImageContainer: {
-      aspectRatio: 1,
-      backgroundColor: "#F3F4F6",
-      borderRadius: 4,
-      marginBottom: 5,
+    productHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 8,
+    },
+    productIdBadge: {
+      backgroundColor: "#DC2626", // Red color like the image
+      width: 24,
+      height: 24,
+      borderRadius: 12, // Makes it a circle
       justifyContent: "center",
       alignItems: "center",
     },
-    productImage: { width: "80%", height: "80%", objectFit: "contain" },
-    productName: {
-      fontFamily: theme.fontFamily.heading,
+    productIdBadgeText: {
+      color: "white",
       fontSize: 8,
-      color: theme.content.textColor,
+      fontFamily: "Helvetica-Bold",
     },
-    productDescription: {
-      fontSize: 7,
-      color: "#6B7280",
-      marginTop: 3,
-      height: 20,
-      fontFamily: theme.fontFamily.body,
+    productName: {
+      fontFamily: "Helvetica-Bold",
+      fontSize: 10,
+      color: theme.content.textColor,
+      marginBottom: 3,
+    },
+    productPriceBadge: {
+      backgroundColor: theme.content.productPriceColor, // Use theme color
+      borderRadius: 10, // Pill shape
+      paddingVertical: 4,
+      paddingHorizontal: 8,
     },
     productPrice: {
-      fontSize: 9,
-      marginTop: "auto",
-      paddingTop: 4,
-      fontFamily: theme.fontFamily.body,
-      color: theme.content.productPriceColor,
+      fontSize: 10,
+      fontFamily: "Helvetica-Bold",
+      color: "#292524", // Dark text for contrast
     },
-    productIdBadge: {
-      position: "absolute",
-      top: 5,
-      right: 5,
-      backgroundColor: "rgba(0,0,0,0.5)",
-      color: "white",
-      padding: "2px 4px",
-      borderRadius: 3,
-      fontSize: 6,
-      fontFamily: theme.fontFamily.body,
+    productBody: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    productImageContainer: {
+      width: "50%",
+      height: 70, // Fixed height for consistency
+      padding: 2,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    productImage: {
+      width: "100%",
+      height: "100%",
+      objectFit: "contain",
+    },
+    productDetails: {
+      flex: 1,
+      paddingLeft: 8,
+      justifyContent: "center",
+    },
+    productSize: {
+      fontSize: 11,
+      color: "#374151", // Dark grey text
+      fontFamily: "Helvetica",
     },
   });
 };
@@ -770,20 +791,11 @@ export const CatalogDocument: React.FC<CatalogDocumentProps> = ({
   theme,
   tocEntries,
   coverLayout,
-  // --- MODIFICATION START ---
-  // Destructure the new prop
   productColumns,
-  // --- MODIFICATION END ---
   isPreviewMode,
 }) => {
-  // --- MODIFICATION START ---
-  // Pass the productColumns value to the styling function
   const styles = getStyles(theme, productColumns);
-  // Calculate the number of products per page dynamically
-  const PRODUCTS_PER_PAGE =
-    productColumns *
-    (productColumns == 2 ? 2 : productColumns == 5 ? 4 : ROWS_PER_PAGE);
-  // --- MODIFICATION END ---
+  const PRODUCTS_PER_PAGE = productColumns * 5;
 
   const FrontCover = () => {
     // No changes needed in any of the FrontCover layouts
@@ -1572,74 +1584,93 @@ export const CatalogDocument: React.FC<CatalogDocumentProps> = ({
       </Page>
 
       {/* --- Categories & Products --- */}
-      {categories.map((category: CategoryWithProducts) => {
-        // --- MODIFICATION START ---
-        // Use the dynamically calculated PRODUCTS_PER_PAGE
-        const productChunks = chunkArray(category.products, PRODUCTS_PER_PAGE);
-        // --- MODIFICATION END ---
-        if (productChunks.length === 0) {
-          return null;
-        }
+      {categories.map(
+        (category: CategoryWithProducts, categoryIndex: number) => {
+          const productChunks = chunkArray(
+            category.products,
+            PRODUCTS_PER_PAGE
+          );
+          if (productChunks.length === 0) {
+            return null;
+          }
 
-        return (
-          <React.Fragment key={category.category_id}>
-            {productChunks.map((chunk, chunkIndex) => (
-              <Page
-                key={chunkIndex}
-                size="A4"
-                style={styles.page}
-                break={chunkIndex === 0}
-              >
-                <View style={styles.pageHeader} fixed>
-                  <Text style={styles.pageHeaderText}>{category.name}</Text>
-                  <Image
-                    cache={true}
-                    src={info.logoUrl || `${location.origin}${Logo}`}
-                    style={styles.pageHeaderLogo}
-                  />
-                </View>
+          return (
+            <React.Fragment key={category.category_id}>
+              {productChunks.map((chunk, chunkIndex) => (
+                <Page
+                  key={chunkIndex}
+                  size="A4"
+                  style={styles.page}
+                  break={chunkIndex === 0}
+                >
+                  <View style={styles.pageHeader} fixed>
+                    <Text style={styles.pageHeaderText}>
+                      {categoryIndex + 1}. {category.name}
+                    </Text>
+                    <Image
+                      cache={true}
+                      src={info.logoUrl || `${location.origin}${Logo}`}
+                      style={styles.pageHeaderLogo}
+                    />
+                  </View>
 
-                <View style={styles.productGrid}>
-                  {chunk.map((product) => (
-                    <View
-                      key={product.item_id}
-                      style={styles.productCard}
-                      wrap={false}
-                    >
-                      <View style={styles.productImageContainer}>
-                        <Image
-                          cache={false}
-                          src={
-                            getImageUrl(product.image_url, !isPreviewMode) ||
-                            PLACEHOLDER_IMAGE
-                          }
-                          style={styles.productImage}
-                        />
+                  <View style={styles.productGrid}>
+                    {chunk.map((product) => (
+                      <View
+                        key={product.item_id}
+                        style={styles.productCard}
+                        wrap={false}
+                      >
+                        <View style={styles.productHeader}>
+                          <View style={styles.productIdBadge}>
+                            <Text style={styles.productIdBadgeText}>
+                              #{product.item_id}
+                            </Text>
+                          </View>
+                          <View style={styles.productPriceBadge}>
+                            <Text style={styles.productPrice}>
+                              ${product.wholesale_price.toFixed(2)}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.productBody}>
+                          <View style={styles.productImageContainer}>
+                            <Image
+                              cache={false}
+                              src={
+                                getImageUrl(
+                                  product.image_url,
+                                  !isPreviewMode
+                                ) || PLACEHOLDER_IMAGE
+                              }
+                              style={styles.productImage}
+                            />
+                          </View>
+                          <View style={styles.productDetails}>
+                            <Text style={styles.productName}>
+                              {product.name}
+                            </Text>
+                            <Text style={styles.productSize}>
+                              {product.description}
+                            </Text>
+                          </View>
+                        </View>
                       </View>
-                      <Text style={styles.productName}>{product.name}</Text>
-                      <Text style={styles.productDescription}>
-                        {product.description}
-                      </Text>
-                      <Text style={styles.productPrice}>
-                        ${product.wholesale_price.toFixed(2)}
-                      </Text>
-                      <Text style={styles.productIdBadge}>
-                        #{product.item_id}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
+                    ))}
+                  </View>
 
-                <Text
-                  style={styles.pageNumber}
-                  render={({ pageNumber }) => pageNumber}
-                  fixed
-                />
-              </Page>
-            ))}
-          </React.Fragment>
-        );
-      })}
+                  <Text
+                    style={styles.pageNumber}
+                    render={({ pageNumber }) => pageNumber}
+                    fixed
+                  />
+                </Page>
+              ))}
+            </React.Fragment>
+          );
+        }
+      )}
 
       {/* --- BACK COVER --- */}
       <Page size="A4" style={styles.backCover}>

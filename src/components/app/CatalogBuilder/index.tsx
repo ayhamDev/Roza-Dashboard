@@ -55,7 +55,7 @@ import {
   type CompanyInfo,
   type CoverLayout,
   type Theme,
-} from "./CatalogDocument";
+} from "./CatalogDocument"; // Assuming CatalogDocument types are in this file
 import { useBreadcrumbs } from "@/context/breadcrumpst";
 
 // --- COLOR PRESETS ---
@@ -571,10 +571,7 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
     colorPresets[0].name
   );
   const [coverLayout, setCoverLayout] = useState<CoverLayout>("minimalist-arc");
-  // --- MODIFICATION START ---
-  // Add state for the number of product columns
   const [productColumns, setProductColumns] = useState<number>(3);
-  // --- MODIFICATION END ---
 
   const [isPreviewMode, setIsPreviewMode] = useState(true);
   const [showPreviewAlert, setShowPreviewAlert] = useState(false);
@@ -582,10 +579,7 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
   const debouncedInfo = useDebounce(info, 500);
   const debouncedTheme = useDebounce(theme, 500);
   const debouncedLayout = useDebounce(coverLayout, 500);
-  // --- MODIFICATION START ---
-  // Debounce the new columns state
   const debouncedProductColumns = useDebounce(productColumns, 500);
-  // --- MODIFICATION END ---
 
   const {
     data: catalogData,
@@ -622,13 +616,9 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
 
   const tocEntries = useMemo(() => {
     if (!categories || categories.length === 0) return [];
-    // --- MODIFICATION START ---
-    // Calculate products per page based on the selected number of columns
     const productsPerRow = debouncedProductColumns;
-    const rowsPerPage = productsPerRow == 2 ? 2 : productsPerRow == 5 ? 4 : 3; // Assuming 3 rows per page is a constant
+    const rowsPerPage = 5; // Assuming 5 rows per page is a constant
     const PRODUCTS_PER_PAGE = productsPerRow * rowsPerPage;
-
-    // --- MODIFICATION END ---
 
     const entries = [];
     let currentPage = 3;
@@ -641,10 +631,7 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
       currentPage += pagesForCategory;
     }
     return entries;
-    // --- MODIFICATION START ---
-    // Add debouncedProductColumns to the dependency array
   }, [categories, debouncedProductColumns]);
-  // --- MODIFICATION END ---
 
   const documentProps = useMemo<CatalogDocumentProps>(
     () => ({
@@ -653,10 +640,7 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
       theme: debouncedTheme,
       tocEntries,
       coverLayout: debouncedLayout,
-      // --- MODIFICATION START ---
-      // Pass the debounced column value to the document props
       productColumns: debouncedProductColumns,
-      // --- MODIFICATION END ---
       isPreviewMode,
     }),
     [
@@ -665,10 +649,7 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
       debouncedTheme,
       tocEntries,
       debouncedLayout,
-      // --- MODIFICATION START ---
-      // Add the debounced column value to the dependency array
       debouncedProductColumns,
-      // --- MODIFICATION END ---
       isPreviewMode,
     ]
   );
@@ -750,7 +731,7 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
             <CardDescription>{catalogData?.catalogName}</CardDescription>
           </CardHeader>
 
-          <div className="px-6 py-4 border-b border-t bg-amber-50 border-amber-200">
+          <div className="px-6 py-4 border-b border-t bg-amber-100 border-amber-200">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label
@@ -804,8 +785,6 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                       </SelectContent>
                     </Select>
                   </div>
-                  {/* --- MODIFICATION START --- */}
-                  {/* Add the Select input for choosing the number of columns */}
                   <div className="grid w-full items-center gap-1.5">
                     <Label htmlFor="product-columns">Products per Row</Label>
                     <Select
@@ -826,7 +805,6 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                       </SelectContent>
                     </Select>
                   </div>
-                  {/* --- MODIFICATION END --- */}
                   <div className="grid w-full items-center gap-1.5">
                     <Label>Logo Upload</Label>
                     <Input
@@ -1021,7 +999,7 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                   </div>
                   <Separator className="my-4" />
                   <h4 className="font-medium text-xs text-muted-foreground">
-                    INDEX COLORS
+                    TABLE OF CONTENTS COLORS
                   </h4>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-1.5">
@@ -1048,6 +1026,36 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                           setTheme((t) => ({
                             ...t,
                             toc: { ...t.toc, pageNumberColor: e.target.value },
+                          }));
+                          setSelectedPreset("");
+                        }}
+                        className="p-1 h-10"
+                      />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label>Border</Label>
+                      <Input
+                        type="color"
+                        value={theme.toc.borderColor}
+                        onChange={(e) => {
+                          setTheme((t) => ({
+                            ...t,
+                            toc: { ...t.toc, borderColor: e.target.value },
+                          }));
+                          setSelectedPreset("");
+                        }}
+                        className="p-1 h-10"
+                      />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label>Text</Label>
+                      <Input
+                        type="color"
+                        value={theme.toc.textColor}
+                        onChange={(e) => {
+                          setTheme((t) => ({
+                            ...t,
+                            toc: { ...t.toc, textColor: e.target.value },
                           }));
                           setSelectedPreset("");
                         }}
@@ -1132,6 +1140,24 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                         className="p-1 h-10"
                       />
                     </div>
+                    <div className="grid gap-1.5">
+                      <Label>Page Background</Label>
+                      <Input
+                        type="color"
+                        value={theme.content.backgroundColor}
+                        onChange={(e) => {
+                          setTheme((t) => ({
+                            ...t,
+                            content: {
+                              ...t.content,
+                              backgroundColor: e.target.value,
+                            },
+                          }));
+                          setSelectedPreset("");
+                        }}
+                        className="p-1 h-10"
+                      />
+                    </div>
                   </div>
                   <Separator className="my-4" />
                   <h4 className="font-medium text-xs text-muted-foreground">
@@ -1167,6 +1193,24 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                             backCover: {
                               ...t.backCover,
                               textColor: e.target.value,
+                            },
+                          }));
+                          setSelectedPreset("");
+                        }}
+                        className="p-1 h-10"
+                      />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label>Background</Label>
+                      <Input
+                        type="color"
+                        value={theme.backCover.backgroundColor}
+                        onChange={(e) => {
+                          setTheme((t) => ({
+                            ...t,
+                            backCover: {
+                              ...t.backCover,
+                              backgroundColor: e.target.value,
                             },
                           }));
                           setSelectedPreset("");
