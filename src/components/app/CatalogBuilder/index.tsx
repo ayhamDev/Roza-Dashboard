@@ -571,6 +571,10 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
     colorPresets[0].name
   );
   const [coverLayout, setCoverLayout] = useState<CoverLayout>("minimalist-arc");
+  // --- MODIFICATION START ---
+  // Add state for the number of product columns
+  const [productColumns, setProductColumns] = useState<number>(3);
+  // --- MODIFICATION END ---
 
   const [isPreviewMode, setIsPreviewMode] = useState(true);
   const [showPreviewAlert, setShowPreviewAlert] = useState(false);
@@ -578,6 +582,10 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
   const debouncedInfo = useDebounce(info, 500);
   const debouncedTheme = useDebounce(theme, 500);
   const debouncedLayout = useDebounce(coverLayout, 500);
+  // --- MODIFICATION START ---
+  // Debounce the new columns state
+  const debouncedProductColumns = useDebounce(productColumns, 500);
+  // --- MODIFICATION END ---
 
   const {
     data: catalogData,
@@ -614,7 +622,14 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
 
   const tocEntries = useMemo(() => {
     if (!categories || categories.length === 0) return [];
-    const PRODUCTS_PER_PAGE = 9;
+    // --- MODIFICATION START ---
+    // Calculate products per page based on the selected number of columns
+    const productsPerRow = debouncedProductColumns;
+    const rowsPerPage = productsPerRow == 2 ? 2 : productsPerRow == 5 ? 4 : 3; // Assuming 3 rows per page is a constant
+    const PRODUCTS_PER_PAGE = productsPerRow * rowsPerPage;
+
+    // --- MODIFICATION END ---
+
     const entries = [];
     let currentPage = 3;
     for (const category of categories) {
@@ -626,7 +641,10 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
       currentPage += pagesForCategory;
     }
     return entries;
-  }, [categories]);
+    // --- MODIFICATION START ---
+    // Add debouncedProductColumns to the dependency array
+  }, [categories, debouncedProductColumns]);
+  // --- MODIFICATION END ---
 
   const documentProps = useMemo<CatalogDocumentProps>(
     () => ({
@@ -635,6 +653,10 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
       theme: debouncedTheme,
       tocEntries,
       coverLayout: debouncedLayout,
+      // --- MODIFICATION START ---
+      // Pass the debounced column value to the document props
+      productColumns: debouncedProductColumns,
+      // --- MODIFICATION END ---
       isPreviewMode,
     }),
     [
@@ -643,6 +665,10 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
       debouncedTheme,
       tocEntries,
       debouncedLayout,
+      // --- MODIFICATION START ---
+      // Add the debounced column value to the dependency array
+      debouncedProductColumns,
+      // --- MODIFICATION END ---
       isPreviewMode,
     ]
   );
@@ -778,6 +804,29 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                       </SelectContent>
                     </Select>
                   </div>
+                  {/* --- MODIFICATION START --- */}
+                  {/* Add the Select input for choosing the number of columns */}
+                  <div className="grid w-full items-center gap-1.5">
+                    <Label htmlFor="product-columns">Products per Row</Label>
+                    <Select
+                      value={String(productColumns)}
+                      onValueChange={(value) =>
+                        setProductColumns(Number(value))
+                      }
+                    >
+                      <SelectTrigger id="product-columns">
+                        <SelectValue placeholder="Select number of columns" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[2, 3, 4, 5].map((cols) => (
+                          <SelectItem key={cols} value={String(cols)}>
+                            {cols} Columns
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {/* --- MODIFICATION END --- */}
                   <div className="grid w-full items-center gap-1.5">
                     <Label>Logo Upload</Label>
                     <Input

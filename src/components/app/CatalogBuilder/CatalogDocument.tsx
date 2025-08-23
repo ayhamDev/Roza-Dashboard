@@ -81,6 +81,38 @@ export interface Theme {
   };
 }
 
+// --- UPDATED THEME TO MATCH "RAGHBA WOOD INTENSE" ---
+export const raghbaTheme: Theme = {
+  fontFamily: {
+    heading: "Times-Roman", // A classic, elegant font
+    body: "Helvetica",
+  },
+  cover: {
+    primaryColor: "#B8860B", // Dark Goldenrod
+    secondaryColor: "#8B4513", // Saddle Brown
+    backgroundColor: "#F5F5DC", // Beige
+    textColor: "#000000", // Black
+  },
+  toc: {
+    headerColor: "#8B4513", // Saddle Brown
+    pageNumberColor: "#B8860B", // Dark Goldenrod
+    borderColor: "#D2B48C", // Tan
+    textColor: "#000000", // Black
+  },
+  content: {
+    categoryHeaderBackgroundColor: "#8B4513", // Saddle Brown
+    categoryHeaderTextColor: "#FFFFFF", // White
+    productPriceColor: "#B8860B", // Dark Goldenrod
+    backgroundColor: "#FFFFFF", // White
+    textColor: "#000000", // Black
+  },
+  backCover: {
+    primaryColor: "#8B4513", // Saddle Brown
+    textColor: "#FFFFFF", // White
+    backgroundColor: "#F5F5DC", // Beige
+  },
+};
+
 export type TocEntry = { name: string; page: number };
 
 export type CoverLayout =
@@ -126,11 +158,18 @@ export interface CatalogDocumentProps {
   theme: Theme;
   tocEntries: TocEntry[];
   coverLayout: CoverLayout;
+  // --- MODIFICATION START ---
+  // Add productColumns to the props interface
+  productColumns: number;
+  // --- MODIFICATION END ---
   isPreviewMode: boolean;
 }
 
 // --- CONSTANTS & UTILITIES ---
-const PRODUCTS_PER_PAGE = 9;
+// --- MODIFICATION START ---
+// ROWS_PER_PAGE is now a named constant for clarity
+const ROWS_PER_PAGE = 3;
+// --- MODIFICATION END ---
 const PLACEHOLDER_IMAGE = "https://placehold.co/300?text=No+Image";
 const chunkArray = <T,>(array: T[], size: number): T[][] => {
   const result: T[][] = [];
@@ -159,17 +198,32 @@ Font.register({
 });
 
 // --- DYNAMIC STYLESHEET ---
-const getStyles = (theme: Theme) =>
-  StyleSheet.create({
+// --- MODIFICATION START ---
+// The getStyles function now accepts productColumns to dynamically set widths
+const getStyles = (theme: Theme, productColumns: number) => {
+  // Helper function to determine card width based on the number of columns
+  const getProductCardWidth = () => {
+    switch (productColumns) {
+      case 2:
+        return "49%";
+      case 4:
+        return "24%";
+      case 5:
+        return "19%";
+      case 3:
+      default:
+        return "32%";
+    }
+  };
+
+  return StyleSheet.create({
+    // --- MODIFICATION END ---
     page: {
       fontFamily: theme.fontFamily.body,
       fontSize: 9,
-      // --- MODIFICATION START ---
-      // Adjusted padding to make space for the new fixed header and footer (page number)
       paddingTop: 80,
       paddingHorizontal: 30,
       paddingBottom: 50,
-      // --- MODIFICATION END ---
       backgroundColor: theme.content.backgroundColor,
     },
     pageNumber: {
@@ -194,7 +248,7 @@ const getStyles = (theme: Theme) =>
       opacity: 0.1,
     },
 
-    // --- Cover Layouts ---
+    // --- Cover Layouts (No changes here) ---
     corpMinPage: { flexDirection: "row", padding: 0 },
     corpMinSidebar: {
       width: "40%",
@@ -627,13 +681,8 @@ const getStyles = (theme: Theme) =>
       width: 25,
       color: theme.toc.headerColor,
     },
-    // --- MODIFICATION START ---
-    // This style is no longer needed as the separate category page is removed.
-    // catHeaderPage: { ... }
-    // --- MODIFICATION END ---
 
-    // --- MODIFICATION START ---
-    // New styles for the fixed header on each product page
+    // --- Page Header ---
     pageHeader: {
       position: "absolute",
       top: 30,
@@ -657,7 +706,6 @@ const getStyles = (theme: Theme) =>
       color: theme.toc.headerColor,
       textTransform: "uppercase",
     },
-    // --- MODIFICATION END ---
 
     // --- Product Grid & Card ---
     productGrid: {
@@ -665,7 +713,14 @@ const getStyles = (theme: Theme) =>
       flexWrap: "wrap",
       justifyContent: "space-between",
     },
-    productCard: { width: "32%", flexDirection: "column", marginBottom: 15 },
+    // --- MODIFICATION START ---
+    // The width is now calculated dynamically
+    productCard: {
+      width: getProductCardWidth(),
+      flexDirection: "column",
+      marginBottom: 15,
+    },
+    // --- MODIFICATION END ---
     productImageContainer: {
       aspectRatio: 1,
       backgroundColor: "#F3F4F6",
@@ -706,6 +761,7 @@ const getStyles = (theme: Theme) =>
       fontFamily: theme.fontFamily.body,
     },
   });
+};
 
 // --- THE PDF DOCUMENT COMPONENT ---
 export const CatalogDocument: React.FC<CatalogDocumentProps> = ({
@@ -714,11 +770,23 @@ export const CatalogDocument: React.FC<CatalogDocumentProps> = ({
   theme,
   tocEntries,
   coverLayout,
-  isPreviewMode, // <-- DESTRUCTURE THE NEW PROP
+  // --- MODIFICATION START ---
+  // Destructure the new prop
+  productColumns,
+  // --- MODIFICATION END ---
+  isPreviewMode,
 }) => {
-  const styles = getStyles(theme);
+  // --- MODIFICATION START ---
+  // Pass the productColumns value to the styling function
+  const styles = getStyles(theme, productColumns);
+  // Calculate the number of products per page dynamically
+  const PRODUCTS_PER_PAGE =
+    productColumns *
+    (productColumns == 2 ? 2 : productColumns == 5 ? 4 : ROWS_PER_PAGE);
+  // --- MODIFICATION END ---
 
   const FrontCover = () => {
+    // No changes needed in any of the FrontCover layouts
     switch (coverLayout) {
       case "corporate-minimalist":
         return (
@@ -1503,13 +1571,12 @@ export const CatalogDocument: React.FC<CatalogDocumentProps> = ({
         />
       </Page>
 
-      {/* --- MODIFICATION START --- */}
       {/* --- Categories & Products --- */}
-      {/* The rendering logic is updated to remove the separate category page */}
-      {/* and add a fixed header to each product page. */}
       {categories.map((category: CategoryWithProducts) => {
+        // --- MODIFICATION START ---
+        // Use the dynamically calculated PRODUCTS_PER_PAGE
         const productChunks = chunkArray(category.products, PRODUCTS_PER_PAGE);
-        // If a category has no products, it won't be rendered.
+        // --- MODIFICATION END ---
         if (productChunks.length === 0) {
           return null;
         }
@@ -1521,10 +1588,8 @@ export const CatalogDocument: React.FC<CatalogDocumentProps> = ({
                 key={chunkIndex}
                 size="A4"
                 style={styles.page}
-                // The `break` prop ensures that each new category starts on a fresh page.
                 break={chunkIndex === 0}
               >
-                {/* This is the new fixed header that appears on every product page. */}
                 <View style={styles.pageHeader} fixed>
                   <Text style={styles.pageHeaderText}>{category.name}</Text>
                   <Image
@@ -1534,7 +1599,6 @@ export const CatalogDocument: React.FC<CatalogDocumentProps> = ({
                   />
                 </View>
 
-                {/* The existing product grid remains the same. */}
                 <View style={styles.productGrid}>
                   {chunk.map((product) => (
                     <View
@@ -1566,7 +1630,6 @@ export const CatalogDocument: React.FC<CatalogDocumentProps> = ({
                   ))}
                 </View>
 
-                {/* The fixed page number also remains. */}
                 <Text
                   style={styles.pageNumber}
                   render={({ pageNumber }) => pageNumber}
@@ -1577,7 +1640,6 @@ export const CatalogDocument: React.FC<CatalogDocumentProps> = ({
           </React.Fragment>
         );
       })}
-      {/* --- MODIFICATION END --- */}
 
       {/* --- BACK COVER --- */}
       <Page size="A4" style={styles.backCover}>
