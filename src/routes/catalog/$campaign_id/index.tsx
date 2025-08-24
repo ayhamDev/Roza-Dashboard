@@ -1,8 +1,40 @@
 "use client";
 
 import logo from "@/assets/Rozalogo.svg";
+import { AppThemeToggle } from "@/components/app/AppThemeToggle";
+import { CartSheet } from "@/components/sheets/cart";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { useCart } from "@/context/cart";
+import { useDebounce } from "@/hooks/use-debounce";
+import { getImageUrl } from "@/lib/GetImageUrl";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
@@ -27,44 +59,12 @@ import {
   useQueryStates,
 } from "nuqs";
 import {
-  useEffect,
-  useState,
   useCallback,
-  useTransition,
+  useEffect,
   useMemo,
+  useState,
+  useTransition,
 } from "react";
-import { AppThemeToggle } from "@/components/app/AppThemeToggle";
-import { CartSheet } from "@/components/sheets/cart";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { useCart } from "@/context/cart";
-import { useDebounce } from "@/hooks/use-debounce";
-import { getImageUrl } from "@/lib/GetImageUrl";
 
 export const Route = createFileRoute("/catalog/$campaign_id/")({
   component: RouteComponent,
@@ -77,8 +77,6 @@ interface Item {
   description: string | null;
   image_url: string | null;
   price: number;
-  retail_price: number;
-  wholesale_price: number;
   category_id: number | null;
   category_name?: string;
   in_stock: boolean;
@@ -90,36 +88,22 @@ interface ItemCategory {
   icon: string | null;
 }
 
-// --- FIX: Updated interface to match CartSheet prop requirements ---
 interface CatalogInfo {
   catalog_id: number;
   name: string;
   status: "enabled" | "disabled" | "draft";
-  created_at: string;
-  updated_at: string;
-  theme_id: number | null;
 }
 
 interface Client {
   client_id: number;
   name: string;
   email: string;
-  phone?: string;
-  whatsapp_phone?: string;
-  address_line1?: string;
-  address_line2?: string;
-  city?: string;
-  state?: string;
-  zip?: number;
-  country?: string;
 }
 
 interface CampaignRecipient {
   recipient_id: string;
   client_id: number;
   campaign_id: string;
-  delivery_method: string;
-  status: string | null;
   client: Client;
 }
 
@@ -130,17 +114,14 @@ interface EdgeFunctionResponse {
   itemsData: { items: Item[]; totalCount: number };
 }
 
-// Consistent pagination with Edge Function
 const ITEMS_PER_PAGE = 10;
 
-// Custom hook to get URL parameters using Web API
+// Custom hook to get URL parameters
 function useURLParams() {
   const [params, setParams] = useState<URLSearchParams>(new URLSearchParams());
-
   useEffect(() => {
     setParams(new URLSearchParams(window.location.search));
   }, []);
-
   return params;
 }
 
@@ -159,13 +140,11 @@ function CatalogContent() {
       page: parseAsInteger.withDefault(1),
       sort: parseAsString.withDefault("name"),
     },
-    {
-      history: "replace",
-    }
+    { history: "replace" }
   );
 
   const [localSearch, setLocalSearch] = useState(urlState.search);
-  const debouncedSearch = useDebounce(localSearch, 500);
+  const debouncedSearch = useDebounce(localSearch, 300);
 
   useEffect(() => {
     setLocalSearch(urlState.search);
@@ -188,69 +167,82 @@ function CatalogContent() {
 
   const {
     data: edgeFunctionData,
-    isLoading: edgeFunctionLoading,
+    isLoading: isInitialLoading,
     error: edgeFunctionError,
-    isFetching: edgeFunctionFetching,
   } = useQuery<EdgeFunctionResponse, Error>({
-    queryKey: [
-      "catalog-data",
-      campaign_id,
-      recipientId,
-      urlState.search,
-      urlState.category,
-      urlState.sort,
-      urlState.page,
-    ],
+    queryKey: ["catalog-data", campaign_id, recipientId],
     queryFn: async (): Promise<EdgeFunctionResponse> => {
       if (!recipientId || !campaign_id) {
         throw new Error("Missing recipient ID or campaign ID.");
       }
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/campaign`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            campaign_id,
-            recipient_id: recipientId,
-            search: urlState.search,
-            category: urlState.category,
-            sort: urlState.sort,
-            page: urlState.page,
-          }),
-        }
+        `${
+          import.meta.env.VITE_SUPABASE_URL
+        }/functions/v1/campaign?campaign_id=${campaign_id}&recipient_id=${recipientId}`
       );
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(
-          errorData.error || "Failed to fetch catalog data from Edge Function."
-        );
+        console.log(errorData);
+
+        throw new Error(errorData.error || "Failed to fetch catalog data.");
       }
       return response.json();
     },
     enabled: !!recipientId && !!campaign_id,
-    retry: false,
-    placeholderData: (previousData) => previousData,
+    retry: 1,
     refetchOnWindowFocus: false,
   });
 
   const campaignRecipient = edgeFunctionData?.campaignRecipient;
   const catalogInfo = edgeFunctionData?.catalogInfo;
   const allCategories = edgeFunctionData?.allCategories || [];
-  const itemsData = edgeFunctionData?.itemsData || { items: [], totalCount: 0 };
+  const allItems = edgeFunctionData?.itemsData?.items || [];
+
+  const filteredAndSortedItems = useMemo(() => {
+    let items = [...allItems];
+
+    if (urlState.search) {
+      items = items.filter((item) =>
+        item.name.toLowerCase().includes(urlState.search.toLowerCase())
+      );
+    }
+
+    if (urlState.category && urlState.category !== "all") {
+      items = items.filter(
+        (item) =>
+          item.category_name?.toLowerCase() === urlState.category.toLowerCase()
+      );
+    }
+
+    switch (urlState.sort) {
+      case "price-low":
+        items.sort((a, b) => a.price - b.price);
+        break;
+      case "price-high":
+        items.sort((a, b) => b.price - a.price);
+        break;
+      default:
+        items.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+    }
+    return items;
+  }, [allItems, urlState.search, urlState.category, urlState.sort]);
+
+  const totalPages = Math.ceil(filteredAndSortedItems.length / ITEMS_PER_PAGE);
+
+  const paginatedItems = useMemo(() => {
+    const startIndex = (urlState.page - 1) * ITEMS_PER_PAGE;
+    return filteredAndSortedItems.slice(
+      startIndex,
+      startIndex + ITEMS_PER_PAGE
+    );
+  }, [filteredAndSortedItems, urlState.page]);
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
-
-  const totalPages =
-    urlState.page > 1
-      ? Math.ceil(itemsData.totalCount / ITEMS_PER_PAGE)
-      : itemsData?.items?.length == 10
-        ? Math.ceil(itemsData.totalCount / ITEMS_PER_PAGE)
-        : 0;
 
   const categoryOptions = useMemo(
     () => [
@@ -274,22 +266,17 @@ function CatalogContent() {
     [addItem]
   );
 
-  const isInitialLoading = edgeFunctionLoading && !edgeFunctionData;
-  const isContentLoading = isPending || edgeFunctionFetching;
-
   if (edgeFunctionError || !recipientId || !campaign_id) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="max-w-md w-full">
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error Loading Catalog</AlertTitle>
-            <AlertDescription className="mt-2">
-              {edgeFunctionError?.message ||
-                "Missing recipient ID or campaign ID."}
-            </AlertDescription>
-          </Alert>
-        </div>
+        <Alert variant="destructive" className="max-w-md w-full">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error Loading Catalog</AlertTitle>
+          <AlertDescription className="mt-2">
+            {edgeFunctionError?.message ||
+              "Missing recipient ID or campaign ID."}
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }
@@ -350,7 +337,6 @@ function CatalogContent() {
           client={campaignRecipient?.client || null}
           recipientId={recipientId}
           campaignId={campaign_id}
-          // --- FIX: Pass null if catalogInfo is undefined to satisfy prop type ---
           catalogInfo={catalogInfo || null}
         />
       </div>
@@ -363,8 +349,8 @@ function CatalogContent() {
               <div className="text-center lg:text-left">
                 <img
                   src={logo || "/placeholder.svg"}
-                  alt=""
-                  className="w-[250px] m-auto py-4 select-none "
+                  alt="Roza Wholesale Logo"
+                  className="w-[250px] m-auto py-4 select-none"
                 />
                 <div className="flex flex-col sm:flex-row lg:flex-col xl:flex-row justify-center lg:justify-start items-center gap-4 text-sm md:text-base">
                   <div className="flex items-center space-x-2 text-primary font-bold bg-primary/10 px-3 py-2 rounded-full">
@@ -378,14 +364,14 @@ function CatalogContent() {
                 </div>
               </div>
             </div>
-            <div className="space-y-6 ">
+            <div className="space-y-6">
               {campaignRecipient?.client && (
                 <div className="bg-primary/10 rounded-lg p-4 mb-6">
                   <p className="text-lg font-medium">
                     Hello {campaignRecipient.client.name}!
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    This catalog has been personalized for you
+                    This catalog has been personalized for you.
                   </p>
                 </div>
               )}
@@ -395,7 +381,7 @@ function CatalogContent() {
                 </h1>
                 <p className="text-lg md:text-xl text-muted-foreground leading-relaxed">
                   Find everything you need in our curated collection of premium
-                  products. Quality, style, and value in every purchase.
+                  products.
                 </p>
               </div>
               <div className="bg-card/80 backdrop-blur-sm rounded-xl p-6 border shadow-lg">
@@ -430,7 +416,7 @@ function CatalogContent() {
         </div>
       </section>
 
-      <main className="container px-4 md:px-6 py-8 md:py-12 mx-auto ">
+      <main className="container px-4 md:px-6 py-8 md:py-12 mx-auto">
         <div className="space-y-4 mb-8">
           <div className="flex flex-col lg:flex-row gap-4">
             <div className="relative flex-1">
@@ -446,10 +432,9 @@ function CatalogContent() {
               <Select
                 value={urlState.category}
                 onValueChange={(value) => {
-                  startTransition(() =>
-                    // @ts-ignore
-                    setUrlState({ category: value, page: 1 })
-                  );
+                  startTransition(() => {
+                    setUrlState({ category: value, page: 1 });
+                  });
                 }}
               >
                 <SelectTrigger className="w-full sm:w-[180px] h-12">
@@ -467,8 +452,9 @@ function CatalogContent() {
               <Select
                 value={urlState.sort}
                 onValueChange={(value) => {
-                  // @ts-ignore
-                  startTransition(() => setUrlState({ sort: value }));
+                  startTransition(() => {
+                    setUrlState({ sort: value });
+                  });
                 }}
               >
                 <SelectTrigger className="w-full sm:w-[180px] h-12">
@@ -483,11 +469,7 @@ function CatalogContent() {
             </div>
           </div>
           <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>
-              Showing {itemsData.items.length} of {itemsData.totalCount}{" "}
-              products
-            </span>
-            {isContentLoading && (
+            {isPending && (
               <span className="flex items-center gap-2 text-xs">
                 <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary"></div>
                 Updating...
@@ -498,10 +480,10 @@ function CatalogContent() {
 
         <div
           className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 mb-8 min-h-[400px] transition-opacity duration-300 ${
-            isContentLoading ? "opacity-60" : "opacity-100"
+            isPending ? "opacity-60" : "opacity-100"
           }`}
         >
-          {itemsData.items.length === 0 && !isContentLoading ? (
+          {paginatedItems.length === 0 && !isPending ? (
             <div className="col-span-full flex flex-col items-center justify-center py-12 text-center">
               <div className="text-6xl mb-4">📦</div>
               <h3 className="text-lg font-semibold mb-2">No products found</h3>
@@ -512,23 +494,21 @@ function CatalogContent() {
                 variant="outline"
                 onClick={() => {
                   setLocalSearch("");
-                  startTransition(() =>
-                    // @ts-ignore
-                    setUrlState({ search: "", category: "all", page: 1 })
-                  );
+                  startTransition(() => {
+                    setUrlState({ search: "", category: "all", page: 1 });
+                  });
                 }}
               >
                 Clear filters
               </Button>
             </div>
           ) : (
-            // @ts-ignore
-            itemsData.items.map((item: Item & { price: number }) => (
+            paginatedItems.map((item: Item) => (
               <Card
                 key={item.item_id}
                 className="hover:shadow-lg pt-0 transition-all duration-300 hover:-translate-y-1 overflow-hidden relative flex flex-col"
               >
-                <div className="absolute top-[-3px]  left-[-3px] z-20">
+                <div className="absolute top-[-3px] left-[-3px] z-20">
                   <Badge variant={"default"} className="rounded-none">
                     <Hash size={20} />
                     {item.item_id}
@@ -602,10 +582,9 @@ function CatalogContent() {
                     onClick={(e) => {
                       e.preventDefault();
                       if (urlState.page > 1) {
-                        startTransition(() =>
-                          // @ts-ignore
-                          setUrlState({ page: urlState.page - 1 })
-                        );
+                        startTransition(() => {
+                          setUrlState({ page: urlState.page - 1 });
+                        });
                       }
                     }}
                     className={
@@ -615,7 +594,6 @@ function CatalogContent() {
                     }
                   />
                 </PaginationItem>
-                {/* --- FIX: Restored full pagination logic --- */}
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map(
                   (page) => {
                     if (
@@ -629,8 +607,9 @@ function CatalogContent() {
                             href="#"
                             onClick={(e) => {
                               e.preventDefault();
-                              // @ts-ignore
-                              startTransition(() => setUrlState({ page }));
+                              startTransition(() => {
+                                setUrlState({ page });
+                              });
                             }}
                             isActive={urlState.page === page}
                           >
@@ -657,10 +636,9 @@ function CatalogContent() {
                     onClick={(e) => {
                       e.preventDefault();
                       if (urlState.page < totalPages) {
-                        startTransition(() =>
-                          // @ts-ignore
-                          setUrlState({ page: urlState.page + 1 })
-                        );
+                        startTransition(() => {
+                          setUrlState({ page: urlState.page + 1 });
+                        });
                       }
                     }}
                     className={
@@ -683,8 +661,7 @@ function CatalogContent() {
               <h3 className="text-lg font-semibold">Roza Wholesale</h3>
               <p className="text-sm text-muted-foreground">
                 Your trusted destination for quality products and exceptional
-                service. We're committed to bringing you the best shopping
-                experience.
+                service.
               </p>
               <div className="flex space-x-4">
                 <Button variant="ghost" size="icon">
@@ -721,7 +698,7 @@ function CatalogContent() {
                 <div className="flex items-center space-x-2">
                   <Mail className="h-4 w-4 text-muted-foreground" />
                   <span className="text-muted-foreground">
-                    support@shophub.com
+                    support@roza.com
                   </span>
                 </div>
               </div>
@@ -730,7 +707,7 @@ function CatalogContent() {
           <Separator className="my-8" />
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} Roza. All rights reserved.{" "}
+              © {new Date().getFullYear()} Roza. All rights reserved.
             </p>
           </div>
         </div>
@@ -739,7 +716,6 @@ function CatalogContent() {
   );
 }
 
-// Main component that provides the cart context
 function RouteComponent() {
   return <CatalogContent />;
 }

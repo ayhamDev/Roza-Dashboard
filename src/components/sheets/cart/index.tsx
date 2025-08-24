@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { useCart } from "@/context/cart";
-import type { Database } from "@/interface/database.types";
+import { useTheme } from "@/context/theme";
 import { getImageUrl } from "@/lib/GetImageUrl";
 import { supabase } from "@/supabase";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -54,7 +54,6 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
-import { useTheme } from "@/context/theme";
 
 const formSchema = z.object({
   shipping_option: z.enum(["default", "custom"], {
@@ -91,7 +90,7 @@ interface CartSheetProps {
   client: Client | null;
   recipientId: string | null;
   campaignId: string | null;
-  catalogInfo: Database["public"]["Tables"]["catalog"]["Row"] | null;
+  catalogInfo: any | null;
 }
 
 export function CartSheet({

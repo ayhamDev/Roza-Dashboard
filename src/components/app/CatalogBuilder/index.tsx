@@ -1,9 +1,16 @@
 "use client";
 
 // --- STEP 1: Imports ---
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { wrap, type Remote } from "comlink";
-import { AlertTriangle, Download, Eye, Loader2 } from "lucide-react";
+import {
+  AlertTriangle,
+  Download,
+  Eye,
+  Loader2,
+  Save,
+  XCircle,
+} from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -12,6 +19,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { toast } from "sonner";
 
 // --- UI Component Imports ---
 import {
@@ -44,7 +52,8 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
 // --- Supabase & Utilities ---
-import { supabase } from "@/supabase"; // Adjust path as needed
+import { supabase } from "@/supabase";
+import type { Json } from "@/interface/database.types";
 
 // --- Type Imports ---
 import type { PdfWorkerApi } from "@/lib/pdf.worker";
@@ -55,8 +64,60 @@ import {
   type CompanyInfo,
   type CoverLayout,
   type Theme,
-} from "./CatalogDocument"; // Assuming CatalogDocument types are in this file
+} from "./CatalogDocument";
 import { useBreadcrumbs } from "@/context/breadcrumpst";
+
+// --- TYPES & DEFAULTS ---
+interface CatalogOptions {
+  info: CompanyInfo;
+  theme: Theme;
+  selectedPreset: string;
+  coverLayout: CoverLayout;
+  productColumns: number;
+}
+
+const defaultOptions: CatalogOptions = {
+  info: {
+    name: "Your Company",
+    tagline: "MULTIPURPOSE",
+    year: new Date().getFullYear().toString(),
+    logoUrl: "",
+    phone: "+1 234 567 8900",
+    email: "hello@creative.co",
+    website: "www.creative.co",
+    address: "123 Design Street, Suite 456, Art City, 78901",
+  },
+  theme: {
+    fontFamily: { heading: "Helvetica-Bold", body: "Helvetica" },
+    cover: {
+      primaryColor: "#f5b50b",
+      secondaryColor: "#1F2937",
+      backgroundColor: "#FFFFFF",
+      textColor: "#111827",
+    },
+    toc: {
+      headerColor: "#1F2937",
+      pageNumberColor: "#f5b50b",
+      borderColor: "#E5E5E5",
+      textColor: "#111827",
+    },
+    content: {
+      categoryHeaderBackgroundColor: "#fdecc8",
+      categoryHeaderTextColor: "#1F2937",
+      productPriceColor: "#f5b50b",
+      backgroundColor: "#FFFFFF",
+      textColor: "#111827",
+    },
+    backCover: {
+      primaryColor: "#1F2937",
+      textColor: "#FFFFFF",
+      backgroundColor: "#FFFFFF",
+    },
+  },
+  selectedPreset: "Sunshine Gold",
+  coverLayout: "minimalist-arc",
+  productColumns: 3,
+};
 
 // --- COLOR PRESETS ---
 type ColorPresetTheme = Omit<Theme, "fontFamily">;
@@ -441,25 +502,15 @@ const colorPresets: { name: string; theme: ColorPresetTheme }[] = [
   },
 ];
 
-// --- HOOK for Debouncing (Performance) ---
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-    return () => clearTimeout(handler);
-  }, [value, delay]);
-  return debouncedValue;
-}
-
 // --- DATA FETCHING ---
-async function fetchCatalogData(
-  catalogId: number
-): Promise<{ catalogName: string; categories: CategoryWithProducts[] }> {
+async function fetchCatalogData(catalogId: number): Promise<{
+  catalogName: string;
+  categories: CategoryWithProducts[];
+  options: Json | null;
+}> {
   const { data: catalogInfo, error: catalogError } = await supabase
     .from("catalog")
-    .select("name")
+    .select("name, options")
     .eq("catalog_id", catalogId)
     .single();
   if (catalogError)
@@ -474,7 +525,11 @@ async function fetchCatalogData(
       `Could not fetch catalog items: ${transitionsError.message}`
     );
   if (!transitions || transitions.length === 0)
-    return { catalogName: catalogInfo.name, categories: [] };
+    return {
+      catalogName: catalogInfo.name,
+      categories: [],
+      options: catalogInfo.options,
+    };
 
   const itemIds = transitions.map((t) => t.item_id);
   const { data: items, error: itemsError } = await supabase
@@ -482,10 +537,14 @@ async function fetchCatalogData(
     .select("*, item_category(*)")
     .in("item_id", itemIds)
     .eq("is_catalog_visible", true);
-
   if (itemsError)
     throw new Error(`Could not fetch item details: ${itemsError.message}`);
-  if (!items) return { catalogName: catalogInfo.name, categories: [] };
+  if (!items)
+    return {
+      catalogName: catalogInfo.name,
+      categories: [],
+      options: catalogInfo.options,
+    };
 
   const categoriesMap = new Map<number, CategoryWithProducts>();
   for (const item of items) {
@@ -499,11 +558,12 @@ async function fetchCatalogData(
   return {
     catalogName: catalogInfo.name,
     categories: Array.from(categoriesMap.values()),
+    options: catalogInfo.options,
   };
 }
 
 // --- CUSTOM HOOK to Manage the PDF Worker ---
-function usePdfWorker(props: CatalogDocumentProps) {
+function usePdfWorker(props: CatalogDocumentProps | null) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [isWorkerLoading, setWorkerLoading] = useState(true);
   const workerApiRef = useRef<Remote<PdfWorkerApi> | null>(null);
@@ -518,11 +578,10 @@ function usePdfWorker(props: CatalogDocumentProps) {
   }, []);
 
   useEffect(() => {
-    if (!workerApiRef.current || props.categories.length === 0) {
+    if (!workerApiRef.current || !props || props.categories.length === 0) {
       setWorkerLoading(false);
       return;
     }
-
     let newUrl: string | null = null;
     const generatePdf = async () => {
       setWorkerLoading(true);
@@ -538,9 +597,7 @@ function usePdfWorker(props: CatalogDocumentProps) {
         setWorkerLoading(false);
       }
     };
-
     generatePdf();
-
     return () => {
       if (newUrl) URL.revokeObjectURL(newUrl);
     };
@@ -552,74 +609,127 @@ function usePdfWorker(props: CatalogDocumentProps) {
 
 // --- MAIN COMPONENT ---
 export function CatalogBuilder({ catalogId }: { catalogId: number }) {
-  const [info, setInfo] = useState<CompanyInfo>({
-    name: "Your Company",
-    tagline: "MULTIPURPOSE",
-    year: new Date().getFullYear().toString(),
-    logoUrl: "",
-    phone: "+1 234 567 8900",
-    email: "hello@creative.co",
-    website: "www.creative.co",
-    address: "123 Design Street, Suite 456, Art City, 78901",
-  });
-  const { setBreadcrumbs } = useBreadcrumbs();
-  const [theme, setTheme] = useState<Theme>(() => ({
-    fontFamily: { heading: "Helvetica-Bold", body: "Helvetica" },
-    ...colorPresets[0].theme,
-  }));
-  const [selectedPreset, setSelectedPreset] = useState<string>(
-    colorPresets[0].name
-  );
-  const [coverLayout, setCoverLayout] = useState<CoverLayout>("minimalist-arc");
-  const [productColumns, setProductColumns] = useState<number>(3);
+  const queryClient = useQueryClient();
+  const queryKey = ["catalog-builder", catalogId];
 
+  const [currentOptions, setCurrentOptions] = useState<CatalogOptions | null>(
+    null
+  );
+  const [initialOptions, setInitialOptions] = useState<CatalogOptions | null>(
+    null
+  );
+  const [isDirty, setIsDirty] = useState(false);
   const [isPreviewMode, setIsPreviewMode] = useState(true);
   const [showPreviewAlert, setShowPreviewAlert] = useState(false);
-
-  const debouncedInfo = useDebounce(info, 500);
-  const debouncedTheme = useDebounce(theme, 500);
-  const debouncedLayout = useDebounce(coverLayout, 500);
-  const debouncedProductColumns = useDebounce(productColumns, 500);
+  const { setBreadcrumbs } = useBreadcrumbs();
 
   const {
     data: catalogData,
     isLoading: isFetchingData,
     error,
   } = useQuery({
-    queryKey: ["catalog-pdf", catalogId],
+    queryKey: queryKey,
     queryFn: () => fetchCatalogData(catalogId),
     enabled: !!catalogId,
   });
-  const categories = catalogData?.categories || [];
 
-  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setInfo((i) => ({ ...i, logoUrl: reader.result as string }));
+  useEffect(() => {
+    if (catalogData && !initialOptions) {
+      const mergedOptions: CatalogOptions = {
+        ...defaultOptions,
+        ...(catalogData.options as Partial<CatalogOptions>),
+        info: {
+          ...defaultOptions.info,
+          ...((catalogData.options as any)?.info || {}),
+        },
+        theme: {
+          ...defaultOptions.theme,
+          ...((catalogData.options as any)?.theme || {}),
+        },
       };
-      reader.readAsDataURL(file);
+      setInitialOptions(mergedOptions);
+      setCurrentOptions(mergedOptions);
+    }
+  }, [catalogData, initialOptions]);
+
+  const { mutate: saveOptions, isPending: isSaving } = useMutation({
+    mutationFn: async (optionsToSave: CatalogOptions) => {
+      const { error } = await supabase
+        .from("catalog")
+        .update({ options: optionsToSave as any })
+        .eq("catalog_id", catalogId);
+      if (error) throw new Error(error.message);
+      return optionsToSave;
+    },
+    onSuccess: (savedData) => {
+      setInitialOptions(savedData);
+      queryClient.invalidateQueries({ queryKey: queryKey });
+      toast.success("Catalog saved successfully!");
+    },
+    onError: (err) => {
+      toast.error(`Failed to save: ${err.message}`);
+    },
+  });
+
+  useEffect(() => {
+    if (!currentOptions || !initialOptions) {
+      setIsDirty(false);
+      return;
+    }
+    const hasChanges =
+      JSON.stringify(currentOptions) !== JSON.stringify(initialOptions);
+    setIsDirty(hasChanges);
+  }, [currentOptions, initialOptions]);
+
+  const handleSave = () => {
+    if (currentOptions && isDirty) {
+      saveOptions(currentOptions);
     }
   };
+  const handleCancel = () => {
+    setCurrentOptions(initialOptions);
+  };
+
+  // const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  //   const file = event.target.files?.[0];
+  //   if (file) {
+  //     const reader = new FileReader();
+  //     reader.onloadend = () => {
+  //       setCurrentOptions((prev) =>
+  //         prev
+  //           ? {
+  //               ...prev,
+  //               info: { ...prev.info, logoUrl: reader.result as string },
+  //             }
+  //           : prev
+  //       );
+  //     };
+  //     reader.readAsDataURL(file);
+  //   }
+  // };
 
   const handlePresetChange = (presetName: string) => {
     const selected = colorPresets.find((p) => p.name === presetName);
     if (selected) {
-      setTheme((current) => ({
-        ...selected.theme,
-        fontFamily: current.fontFamily,
-      }));
-      setSelectedPreset(presetName);
+      setCurrentOptions((prev) =>
+        prev
+          ? {
+              ...prev,
+              theme: { ...selected.theme, fontFamily: prev.theme.fontFamily },
+              selectedPreset: presetName,
+            }
+          : prev
+      );
     }
   };
 
-  const tocEntries = useMemo(() => {
-    if (!categories || categories.length === 0) return [];
-    const productsPerRow = debouncedProductColumns;
-    const rowsPerPage = 5; // Assuming 5 rows per page is a constant
-    const PRODUCTS_PER_PAGE = productsPerRow * rowsPerPage;
+  const categories = catalogData?.categories || [];
 
+  const tocEntries = useMemo(() => {
+    if (!categories || categories.length === 0 || !initialOptions) return [];
+    const productsPerRow = initialOptions.productColumns;
+    const rowsPerPage = 5;
+    const PRODUCTS_PER_PAGE = productsPerRow * rowsPerPage;
     const entries = [];
     let currentPage = 3;
     for (const category of categories) {
@@ -631,28 +741,20 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
       currentPage += pagesForCategory;
     }
     return entries;
-  }, [categories, debouncedProductColumns]);
+  }, [categories, initialOptions]);
 
-  const documentProps = useMemo<CatalogDocumentProps>(
-    () => ({
+  const documentProps = useMemo<CatalogDocumentProps | null>(() => {
+    if (!initialOptions) return null;
+    return {
       categories,
-      info: debouncedInfo,
-      theme: debouncedTheme,
+      info: initialOptions.info,
+      theme: initialOptions.theme,
       tocEntries,
-      coverLayout: debouncedLayout,
-      productColumns: debouncedProductColumns,
+      coverLayout: initialOptions.coverLayout,
+      productColumns: initialOptions.productColumns,
       isPreviewMode,
-    }),
-    [
-      categories,
-      debouncedInfo,
-      debouncedTheme,
-      tocEntries,
-      debouncedLayout,
-      debouncedProductColumns,
-      isPreviewMode,
-    ]
-  );
+    };
+  }, [categories, initialOptions, tocEntries, isPreviewMode]);
 
   const { pdfUrl, isWorkerLoading } = usePdfWorker(documentProps);
 
@@ -662,15 +764,14 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
       return;
     }
     setShowPreviewAlert(false);
-
     if (!pdfUrl) return;
     const link = document.createElement("a");
     link.href = pdfUrl;
-    link.download = `${catalogData?.catalogName || "Catalog"}_${info.year}.pdf`;
+    link.download = `${catalogData?.catalogName || "Catalog"}_${initialOptions?.info.year}.pdf`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  }, [pdfUrl, catalogData?.catalogName, info.year, isPreviewMode]);
+  }, [pdfUrl, catalogData?.catalogName, initialOptions, isPreviewMode]);
 
   useEffect(() => {
     if (showPreviewAlert) {
@@ -685,19 +786,22 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
       { id: "catalog", label: "Catalogs", href: "/dashboard/catalog" },
       {
         id: "catalog_name",
-        label: catalogData ? catalogData?.catalogName : "Loading...",
+        label: catalogData?.catalogName
+          ? catalogData.catalogName
+          : "Loading...",
         isActive: true,
       },
     ]);
   }, [catalogData, setBreadcrumbs]);
 
-  if (isFetchingData)
+  if (isFetchingData || !currentOptions)
     return (
       <div className="flex justify-center items-center h-screen">
         <Loader2 className="h-12 w-12 animate-spin text-gray-500" />
         <p className="ml-4 text-lg">Fetching Catalog Data...</p>
       </div>
     );
+
   if (error)
     return (
       <Alert variant="destructive" className="m-4">
@@ -716,21 +820,12 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
 
   return (
     <div className="flex h-[calc(100vh-61px)] font-sans bg-muted/40 relative">
-      {(isWorkerLoading || isFetchingData) && (
-        <div className="absolute  inset-0 dark:bg-white/70 bg-accent-foreground/50 backdrop-blur-md z-50 flex flex-col items-center justify-center rounded-md">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
-          <p className="text-muted-foreground font-medium">
-            {isFetchingData ? "Fetching Data..." : "Generating Pdf..."}
-          </p>
-        </div>
-      )}
       <aside className="w-[420px] h-full flex-shrink-0 relative">
         <Card className="h-full rounded-none border-0 border-r flex flex-col">
           <CardHeader>
             <CardTitle>Catalog Editor</CardTitle>
             <CardDescription>{catalogData?.catalogName}</CardDescription>
           </CardHeader>
-
           <div className="px-6 py-4 border-b border-t bg-amber-100 border-amber-200">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
@@ -747,13 +842,13 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                 </p>
               </div>
               <Switch
+                disabled={isFetchingData || isWorkerLoading}
                 id="preview-mode"
                 checked={isPreviewMode}
                 onCheckedChange={setIsPreviewMode}
               />
             </div>
           </div>
-
           <CardContent className="flex-grow overflow-y-auto pr-4 pt-6">
             <Accordion
               type="multiple"
@@ -768,9 +863,11 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                   <div className="grid w-full items-center gap-1.5">
                     <Label htmlFor="layout">Cover Layout</Label>
                     <Select
-                      value={coverLayout}
+                      value={currentOptions.coverLayout}
                       onValueChange={(value: CoverLayout) =>
-                        setCoverLayout(value)
+                        setCurrentOptions((prev) =>
+                          prev ? { ...prev, coverLayout: value } : prev
+                        )
                       }
                     >
                       <SelectTrigger>
@@ -788,9 +885,13 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                   <div className="grid w-full items-center gap-1.5">
                     <Label htmlFor="product-columns">Products per Row</Label>
                     <Select
-                      value={String(productColumns)}
+                      value={String(currentOptions.productColumns)}
                       onValueChange={(value) =>
-                        setProductColumns(Number(value))
+                        setCurrentOptions((prev) =>
+                          prev
+                            ? { ...prev, productColumns: Number(value) }
+                            : prev
+                        )
                       }
                     >
                       <SelectTrigger id="product-columns">
@@ -805,7 +906,7 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="grid w-full items-center gap-1.5">
+                  {/* <div className="grid w-full items-center gap-1.5">
                     <Label>Logo Upload</Label>
                     <Input
                       id="logo-upload"
@@ -814,15 +915,22 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                       onChange={handleLogoUpload}
                       className="pt-1.5"
                     />
-                  </div>
+                  </div> */}
                   <div className="grid gap-1.5">
                     <Label htmlFor="name">Company Name</Label>
                     <Input
                       id="name"
                       type="text"
-                      value={info.name}
+                      value={currentOptions.info.name}
                       onChange={(e) =>
-                        setInfo((i) => ({ ...i, name: e.target.value }))
+                        setCurrentOptions((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                info: { ...prev.info, name: e.target.value },
+                              }
+                            : prev
+                        )
                       }
                     />
                   </div>
@@ -831,9 +939,16 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                     <Input
                       id="tagline"
                       type="text"
-                      value={info.tagline}
+                      value={currentOptions.info.tagline}
                       onChange={(e) =>
-                        setInfo((i) => ({ ...i, tagline: e.target.value }))
+                        setCurrentOptions((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                info: { ...prev.info, tagline: e.target.value },
+                              }
+                            : prev
+                        )
                       }
                     />
                   </div>
@@ -842,9 +957,16 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                     <Input
                       id="year"
                       type="text"
-                      value={info.year}
+                      value={currentOptions.info.year}
                       onChange={(e) =>
-                        setInfo((i) => ({ ...i, year: e.target.value }))
+                        setCurrentOptions((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                info: { ...prev.info, year: e.target.value },
+                              }
+                            : prev
+                        )
                       }
                     />
                   </div>
@@ -858,7 +980,7 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                   <div className="grid w-full items-center gap-1.5">
                     <Label htmlFor="preset">Color Preset</Label>
                     <Select
-                      value={selectedPreset}
+                      value={currentOptions.selectedPreset}
                       onValueChange={handlePresetChange}
                     >
                       <SelectTrigger>
@@ -881,12 +1003,22 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                     <div className="grid gap-1.5">
                       <Label>Heading</Label>
                       <Select
-                        value={theme.fontFamily.heading}
+                        value={currentOptions.theme.fontFamily.heading}
                         onValueChange={(val) =>
-                          setTheme((t) => ({
-                            ...t,
-                            fontFamily: { ...t.fontFamily, heading: val },
-                          }))
+                          setCurrentOptions((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  theme: {
+                                    ...prev.theme,
+                                    fontFamily: {
+                                      ...prev.theme.fontFamily,
+                                      heading: val,
+                                    },
+                                  },
+                                }
+                              : prev
+                          )
                         }
                       >
                         <SelectTrigger>
@@ -904,12 +1036,22 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                     <div className="grid gap-1.5">
                       <Label>Body</Label>
                       <Select
-                        value={theme.fontFamily.body}
+                        value={currentOptions.theme.fontFamily.body}
                         onValueChange={(val) =>
-                          setTheme((t) => ({
-                            ...t,
-                            fontFamily: { ...t.fontFamily, body: val },
-                          }))
+                          setCurrentOptions((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  theme: {
+                                    ...prev.theme,
+                                    fontFamily: {
+                                      ...prev.theme.fontFamily,
+                                      body: val,
+                                    },
+                                  },
+                                }
+                              : prev
+                          )
                         }
                       >
                         <SelectTrigger>
@@ -934,14 +1076,24 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                       <Label>Primary</Label>
                       <Input
                         type="color"
-                        value={theme.cover.primaryColor}
-                        onChange={(e) => {
-                          setTheme((t) => ({
-                            ...t,
-                            cover: { ...t.cover, primaryColor: e.target.value },
-                          }));
-                          setSelectedPreset("");
-                        }}
+                        value={currentOptions.theme.cover.primaryColor}
+                        onChange={(e) =>
+                          setCurrentOptions((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  selectedPreset: "",
+                                  theme: {
+                                    ...prev.theme,
+                                    cover: {
+                                      ...prev.theme.cover,
+                                      primaryColor: e.target.value,
+                                    },
+                                  },
+                                }
+                              : prev
+                          )
+                        }
                         className="p-1 h-10"
                       />
                     </div>
@@ -949,17 +1101,24 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                       <Label>Secondary</Label>
                       <Input
                         type="color"
-                        value={theme.cover.secondaryColor}
-                        onChange={(e) => {
-                          setTheme((t) => ({
-                            ...t,
-                            cover: {
-                              ...t.cover,
-                              secondaryColor: e.target.value,
-                            },
-                          }));
-                          setSelectedPreset("");
-                        }}
+                        value={currentOptions.theme.cover.secondaryColor}
+                        onChange={(e) =>
+                          setCurrentOptions((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  selectedPreset: "",
+                                  theme: {
+                                    ...prev.theme,
+                                    cover: {
+                                      ...prev.theme.cover,
+                                      secondaryColor: e.target.value,
+                                    },
+                                  },
+                                }
+                              : prev
+                          )
+                        }
                         className="p-1 h-10"
                       />
                     </div>
@@ -967,17 +1126,24 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                       <Label>Background</Label>
                       <Input
                         type="color"
-                        value={theme.cover.backgroundColor}
-                        onChange={(e) => {
-                          setTheme((t) => ({
-                            ...t,
-                            cover: {
-                              ...t.cover,
-                              backgroundColor: e.target.value,
-                            },
-                          }));
-                          setSelectedPreset("");
-                        }}
+                        value={currentOptions.theme.cover.backgroundColor}
+                        onChange={(e) =>
+                          setCurrentOptions((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  selectedPreset: "",
+                                  theme: {
+                                    ...prev.theme,
+                                    cover: {
+                                      ...prev.theme.cover,
+                                      backgroundColor: e.target.value,
+                                    },
+                                  },
+                                }
+                              : prev
+                          )
+                        }
                         className="p-1 h-10"
                       />
                     </div>
@@ -985,14 +1151,24 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                       <Label>Text</Label>
                       <Input
                         type="color"
-                        value={theme.cover.textColor}
-                        onChange={(e) => {
-                          setTheme((t) => ({
-                            ...t,
-                            cover: { ...t.cover, textColor: e.target.value },
-                          }));
-                          setSelectedPreset("");
-                        }}
+                        value={currentOptions.theme.cover.textColor}
+                        onChange={(e) =>
+                          setCurrentOptions((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  selectedPreset: "",
+                                  theme: {
+                                    ...prev.theme,
+                                    cover: {
+                                      ...prev.theme.cover,
+                                      textColor: e.target.value,
+                                    },
+                                  },
+                                }
+                              : prev
+                          )
+                        }
                         className="p-1 h-10"
                       />
                     </div>
@@ -1006,14 +1182,24 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                       <Label>Header</Label>
                       <Input
                         type="color"
-                        value={theme.toc.headerColor}
-                        onChange={(e) => {
-                          setTheme((t) => ({
-                            ...t,
-                            toc: { ...t.toc, headerColor: e.target.value },
-                          }));
-                          setSelectedPreset("");
-                        }}
+                        value={currentOptions.theme.toc.headerColor}
+                        onChange={(e) =>
+                          setCurrentOptions((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  selectedPreset: "",
+                                  theme: {
+                                    ...prev.theme,
+                                    toc: {
+                                      ...prev.theme.toc,
+                                      headerColor: e.target.value,
+                                    },
+                                  },
+                                }
+                              : prev
+                          )
+                        }
                         className="p-1 h-10"
                       />
                     </div>
@@ -1021,14 +1207,24 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                       <Label>Page Number</Label>
                       <Input
                         type="color"
-                        value={theme.toc.pageNumberColor}
-                        onChange={(e) => {
-                          setTheme((t) => ({
-                            ...t,
-                            toc: { ...t.toc, pageNumberColor: e.target.value },
-                          }));
-                          setSelectedPreset("");
-                        }}
+                        value={currentOptions.theme.toc.pageNumberColor}
+                        onChange={(e) =>
+                          setCurrentOptions((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  selectedPreset: "",
+                                  theme: {
+                                    ...prev.theme,
+                                    toc: {
+                                      ...prev.theme.toc,
+                                      pageNumberColor: e.target.value,
+                                    },
+                                  },
+                                }
+                              : prev
+                          )
+                        }
                         className="p-1 h-10"
                       />
                     </div>
@@ -1036,14 +1232,24 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                       <Label>Border</Label>
                       <Input
                         type="color"
-                        value={theme.toc.borderColor}
-                        onChange={(e) => {
-                          setTheme((t) => ({
-                            ...t,
-                            toc: { ...t.toc, borderColor: e.target.value },
-                          }));
-                          setSelectedPreset("");
-                        }}
+                        value={currentOptions.theme.toc.borderColor}
+                        onChange={(e) =>
+                          setCurrentOptions((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  selectedPreset: "",
+                                  theme: {
+                                    ...prev.theme,
+                                    toc: {
+                                      ...prev.theme.toc,
+                                      borderColor: e.target.value,
+                                    },
+                                  },
+                                }
+                              : prev
+                          )
+                        }
                         className="p-1 h-10"
                       />
                     </div>
@@ -1051,14 +1257,24 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                       <Label>Text</Label>
                       <Input
                         type="color"
-                        value={theme.toc.textColor}
-                        onChange={(e) => {
-                          setTheme((t) => ({
-                            ...t,
-                            toc: { ...t.toc, textColor: e.target.value },
-                          }));
-                          setSelectedPreset("");
-                        }}
+                        value={currentOptions.theme.toc.textColor}
+                        onChange={(e) =>
+                          setCurrentOptions((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  selectedPreset: "",
+                                  theme: {
+                                    ...prev.theme,
+                                    toc: {
+                                      ...prev.theme.toc,
+                                      textColor: e.target.value,
+                                    },
+                                  },
+                                }
+                              : prev
+                          )
+                        }
                         className="p-1 h-10"
                       />
                     </div>
@@ -1072,17 +1288,28 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                       <Label>Category BG</Label>
                       <Input
                         type="color"
-                        value={theme.content.categoryHeaderBackgroundColor}
-                        onChange={(e) => {
-                          setTheme((t) => ({
-                            ...t,
-                            content: {
-                              ...t.content,
-                              categoryHeaderBackgroundColor: e.target.value,
-                            },
-                          }));
-                          setSelectedPreset("");
-                        }}
+                        value={
+                          currentOptions.theme.content
+                            .categoryHeaderBackgroundColor
+                        }
+                        onChange={(e) =>
+                          setCurrentOptions((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  selectedPreset: "",
+                                  theme: {
+                                    ...prev.theme,
+                                    content: {
+                                      ...prev.theme.content,
+                                      categoryHeaderBackgroundColor:
+                                        e.target.value,
+                                    },
+                                  },
+                                }
+                              : prev
+                          )
+                        }
                         className="p-1 h-10"
                       />
                     </div>
@@ -1090,17 +1317,26 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                       <Label>Category Text</Label>
                       <Input
                         type="color"
-                        value={theme.content.categoryHeaderTextColor}
-                        onChange={(e) => {
-                          setTheme((t) => ({
-                            ...t,
-                            content: {
-                              ...t.content,
-                              categoryHeaderTextColor: e.target.value,
-                            },
-                          }));
-                          setSelectedPreset("");
-                        }}
+                        value={
+                          currentOptions.theme.content.categoryHeaderTextColor
+                        }
+                        onChange={(e) =>
+                          setCurrentOptions((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  selectedPreset: "",
+                                  theme: {
+                                    ...prev.theme,
+                                    content: {
+                                      ...prev.theme.content,
+                                      categoryHeaderTextColor: e.target.value,
+                                    },
+                                  },
+                                }
+                              : prev
+                          )
+                        }
                         className="p-1 h-10"
                       />
                     </div>
@@ -1108,17 +1344,24 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                       <Label>Price</Label>
                       <Input
                         type="color"
-                        value={theme.content.productPriceColor}
-                        onChange={(e) => {
-                          setTheme((t) => ({
-                            ...t,
-                            content: {
-                              ...t.content,
-                              productPriceColor: e.target.value,
-                            },
-                          }));
-                          setSelectedPreset("");
-                        }}
+                        value={currentOptions.theme.content.productPriceColor}
+                        onChange={(e) =>
+                          setCurrentOptions((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  selectedPreset: "",
+                                  theme: {
+                                    ...prev.theme,
+                                    content: {
+                                      ...prev.theme.content,
+                                      productPriceColor: e.target.value,
+                                    },
+                                  },
+                                }
+                              : prev
+                          )
+                        }
                         className="p-1 h-10"
                       />
                     </div>
@@ -1126,17 +1369,24 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                       <Label>Body Text</Label>
                       <Input
                         type="color"
-                        value={theme.content.textColor}
-                        onChange={(e) => {
-                          setTheme((t) => ({
-                            ...t,
-                            content: {
-                              ...t.content,
-                              textColor: e.target.value,
-                            },
-                          }));
-                          setSelectedPreset("");
-                        }}
+                        value={currentOptions.theme.content.textColor}
+                        onChange={(e) =>
+                          setCurrentOptions((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  selectedPreset: "",
+                                  theme: {
+                                    ...prev.theme,
+                                    content: {
+                                      ...prev.theme.content,
+                                      textColor: e.target.value,
+                                    },
+                                  },
+                                }
+                              : prev
+                          )
+                        }
                         className="p-1 h-10"
                       />
                     </div>
@@ -1144,17 +1394,24 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                       <Label>Page Background</Label>
                       <Input
                         type="color"
-                        value={theme.content.backgroundColor}
-                        onChange={(e) => {
-                          setTheme((t) => ({
-                            ...t,
-                            content: {
-                              ...t.content,
-                              backgroundColor: e.target.value,
-                            },
-                          }));
-                          setSelectedPreset("");
-                        }}
+                        value={currentOptions.theme.content.backgroundColor}
+                        onChange={(e) =>
+                          setCurrentOptions((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  selectedPreset: "",
+                                  theme: {
+                                    ...prev.theme,
+                                    content: {
+                                      ...prev.theme.content,
+                                      backgroundColor: e.target.value,
+                                    },
+                                  },
+                                }
+                              : prev
+                          )
+                        }
                         className="p-1 h-10"
                       />
                     </div>
@@ -1168,17 +1425,24 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                       <Label>Primary</Label>
                       <Input
                         type="color"
-                        value={theme.backCover.primaryColor}
-                        onChange={(e) => {
-                          setTheme((t) => ({
-                            ...t,
-                            backCover: {
-                              ...t.backCover,
-                              primaryColor: e.target.value,
-                            },
-                          }));
-                          setSelectedPreset("");
-                        }}
+                        value={currentOptions.theme.backCover.primaryColor}
+                        onChange={(e) =>
+                          setCurrentOptions((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  selectedPreset: "",
+                                  theme: {
+                                    ...prev.theme,
+                                    backCover: {
+                                      ...prev.theme.backCover,
+                                      primaryColor: e.target.value,
+                                    },
+                                  },
+                                }
+                              : prev
+                          )
+                        }
                         className="p-1 h-10"
                       />
                     </div>
@@ -1186,17 +1450,24 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                       <Label>Text</Label>
                       <Input
                         type="color"
-                        value={theme.backCover.textColor}
-                        onChange={(e) => {
-                          setTheme((t) => ({
-                            ...t,
-                            backCover: {
-                              ...t.backCover,
-                              textColor: e.target.value,
-                            },
-                          }));
-                          setSelectedPreset("");
-                        }}
+                        value={currentOptions.theme.backCover.textColor}
+                        onChange={(e) =>
+                          setCurrentOptions((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  selectedPreset: "",
+                                  theme: {
+                                    ...prev.theme,
+                                    backCover: {
+                                      ...prev.theme.backCover,
+                                      textColor: e.target.value,
+                                    },
+                                  },
+                                }
+                              : prev
+                          )
+                        }
                         className="p-1 h-10"
                       />
                     </div>
@@ -1204,17 +1475,24 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                       <Label>Background</Label>
                       <Input
                         type="color"
-                        value={theme.backCover.backgroundColor}
-                        onChange={(e) => {
-                          setTheme((t) => ({
-                            ...t,
-                            backCover: {
-                              ...t.backCover,
-                              backgroundColor: e.target.value,
-                            },
-                          }));
-                          setSelectedPreset("");
-                        }}
+                        value={currentOptions.theme.backCover.backgroundColor}
+                        onChange={(e) =>
+                          setCurrentOptions((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  selectedPreset: "",
+                                  theme: {
+                                    ...prev.theme,
+                                    backCover: {
+                                      ...prev.theme.backCover,
+                                      backgroundColor: e.target.value,
+                                    },
+                                  },
+                                }
+                              : prev
+                          )
+                        }
                         className="p-1 h-10"
                       />
                     </div>
@@ -1231,9 +1509,16 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                     <Input
                       id="phone"
                       type="text"
-                      value={info.phone}
+                      value={currentOptions.info.phone}
                       onChange={(e) =>
-                        setInfo((i) => ({ ...i, phone: e.target.value }))
+                        setCurrentOptions((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                info: { ...prev.info, phone: e.target.value },
+                              }
+                            : prev
+                        )
                       }
                     />
                   </div>
@@ -1242,9 +1527,16 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                     <Input
                       id="email"
                       type="email"
-                      value={info.email}
+                      value={currentOptions.info.email}
                       onChange={(e) =>
-                        setInfo((i) => ({ ...i, email: e.target.value }))
+                        setCurrentOptions((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                info: { ...prev.info, email: e.target.value },
+                              }
+                            : prev
+                        )
                       }
                     />
                   </div>
@@ -1253,9 +1545,16 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                     <Input
                       id="website"
                       type="text"
-                      value={info.website}
+                      value={currentOptions.info.website}
                       onChange={(e) =>
-                        setInfo((i) => ({ ...i, website: e.target.value }))
+                        setCurrentOptions((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                info: { ...prev.info, website: e.target.value },
+                              }
+                            : prev
+                        )
                       }
                     />
                   </div>
@@ -1263,9 +1562,16 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                     <Label htmlFor="address">Address</Label>
                     <Textarea
                       id="address"
-                      value={info.address}
+                      value={currentOptions.info.address}
                       onChange={(e) =>
-                        setInfo((i) => ({ ...i, address: e.target.value }))
+                        setCurrentOptions((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                info: { ...prev.info, address: e.target.value },
+                              }
+                            : prev
+                        )
                       }
                     />
                   </div>
@@ -1274,7 +1580,7 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
             </Accordion>
           </CardContent>
           {categories.length > 0 && (
-            <CardFooter className="pt-4 border-t flex-col items-start">
+            <CardFooter className="pt-4 border-t flex-col items-start gap-4">
               {showPreviewAlert && (
                 <Alert variant="destructive" className="mb-4 w-full">
                   <AlertTriangle className="h-4 w-4" />
@@ -1285,10 +1591,34 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                   </AlertDescription>
                 </Alert>
               )}
+              <div className="w-full flex items-center gap-3">
+                <Button
+                  onClick={handleSave}
+                  disabled={
+                    isFetchingData || isWorkerLoading || !isDirty || isSaving
+                  }
+                  className="flex-grow"
+                >
+                  {isSaving ? (
+                    <Loader2 size={16} className="animate-spin mr-2" />
+                  ) : (
+                    <Save size={16} className="mr-2" />
+                  )}
+                  Save Changes
+                </Button>
+                <Button
+                  onClick={handleCancel}
+                  disabled={!isDirty || isSaving}
+                  variant="outline"
+                >
+                  <XCircle size={16} className="mr-2" />
+                  Cancel
+                </Button>
+              </div>
               <Button
                 onClick={handleDownload}
                 disabled={isWorkerLoading || !pdfUrl}
-                className="w-full"
+                className="w-full mt-2"
               >
                 {isWorkerLoading && isPreviewMode ? (
                   <>
@@ -1297,7 +1627,7 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                   </>
                 ) : isWorkerLoading && !isPreviewMode ? (
                   <>
-                    <Loader2 size={16} className="animate-spin mr-2" />
+                    <Loader2 size={16} className="animate-spin mr-2 text" />
                     Generating Final PDF...
                   </>
                 ) : (
@@ -1310,8 +1640,19 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
           )}
         </Card>
       </aside>
-
       <main className="flex-grow h-full p-4 relative">
+        {(isWorkerLoading || isFetchingData || isSaving) && (
+          <div className="absolute inset-0 dark:bg-white/50 bg-accent-foreground/50 backdrop-blur-md z-50 flex flex-col items-center justify-center rounded-md">
+            <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
+            <p className="dark:text-muted text-muted-foreground font-medium">
+              {isFetchingData
+                ? "Fetching Data..."
+                : isSaving
+                  ? "Saving..."
+                  : "Generating Pdf..."}
+            </p>
+          </div>
+        )}
         <div className="w-full h-full rounded-md border overflow-hidden">
           {pdfUrl ? (
             <iframe
