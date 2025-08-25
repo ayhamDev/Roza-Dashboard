@@ -1,7 +1,7 @@
 "use client";
 
 // --- STEP 1: Imports ---
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { wrap, type Remote } from "comlink";
 import {
   AlertTriangle,
@@ -11,7 +11,7 @@ import {
   Save,
   XCircle,
 } from "lucide-react";
-import React, {
+import {
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -52,10 +52,11 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
 // --- Supabase & Utilities ---
-import { supabase } from "@/supabase";
 import type { Json } from "@/interface/database.types";
+import { supabase } from "@/supabase";
 
 // --- Type Imports ---
+import { useBreadcrumbs } from "@/context/breadcrumpst";
 import type { PdfWorkerApi } from "@/lib/pdf.worker";
 import {
   CoverLayouts,
@@ -65,18 +66,20 @@ import {
   type CoverLayout,
   type Theme,
 } from "./CatalogDocument";
-import { useBreadcrumbs } from "@/context/breadcrumpst";
 
 // --- TYPES & DEFAULTS ---
+type TypePriceDisplay = "wholesale_price" | "retail_price" | "none";
 interface CatalogOptions {
   info: CompanyInfo;
   theme: Theme;
   selectedPreset: string;
   coverLayout: CoverLayout;
   productColumns: number;
+  priceDisplay: TypePriceDisplay;
 }
 
 const defaultOptions: CatalogOptions = {
+  priceDisplay: "wholesale_price",
   info: {
     name: "Your Company",
     tagline: "MULTIPURPOSE",
@@ -752,6 +755,7 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
       tocEntries,
       coverLayout: initialOptions.coverLayout,
       productColumns: initialOptions.productColumns,
+      priceDisplay: initialOptions.priceDisplay,
       isPreviewMode,
     };
   }, [categories, initialOptions, tocEntries, isPreviewMode]);
@@ -879,6 +883,32 @@ export function CatalogBuilder({ catalogId }: { catalogId: number }) {
                             {layout}
                           </SelectItem>
                         ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid w-full items-center gap-1.5">
+                    <Label htmlFor="price">Pricing Mode</Label>
+                    <Select
+                      value={currentOptions.priceDisplay}
+                      onValueChange={(value: TypePriceDisplay) =>
+                        setCurrentOptions((prev) =>
+                          prev ? { ...prev, priceDisplay: value } : prev
+                        )
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a layout" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem key={"wholesale"} value={"wholesale_price"}>
+                          Wholesale Price
+                        </SelectItem>
+                        <SelectItem key={"Retail"} value={"retail_price"}>
+                          Retail Price
+                        </SelectItem>
+                        <SelectItem key={"none"} value={"none"}>
+                          No Price
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

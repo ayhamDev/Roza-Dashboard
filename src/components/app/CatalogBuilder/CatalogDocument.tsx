@@ -151,6 +151,7 @@ export const CoverLayouts: CoverLayout[] = [
   "color-wave",
   "logo-showcase",
 ];
+type TypePriceDisplay = "wholesale_price" | "retail_price" | "none";
 
 export interface CatalogDocumentProps {
   categories: CategoryWithProducts[];
@@ -160,6 +161,7 @@ export interface CatalogDocumentProps {
   coverLayout: CoverLayout;
   productColumns: number;
   isPreviewMode: boolean;
+  priceDisplay: TypePriceDisplay;
 }
 
 // --- CONSTANTS & UTILITIES ---
@@ -793,6 +795,7 @@ export const CatalogDocument: React.FC<CatalogDocumentProps> = ({
   coverLayout,
   productColumns,
   isPreviewMode,
+  priceDisplay,
 }) => {
   const styles = getStyles(theme, productColumns);
   const PRODUCTS_PER_PAGE = productColumns * 5;
@@ -1627,11 +1630,19 @@ export const CatalogDocument: React.FC<CatalogDocumentProps> = ({
                               #{product.item_id}
                             </Text>
                           </View>
-                          <View style={styles.productPriceBadge}>
-                            <Text style={styles.productPrice}>
-                              ${product.wholesale_price.toFixed(2)}
-                            </Text>
-                          </View>
+                          {priceDisplay !== "none" && (
+                            <View style={styles.productPriceBadge}>
+                              <Text style={styles.productPrice}>
+                                $
+                                {priceDisplay == "wholesale_price"
+                                  ? product?.wholesale_price?.toFixed(2) ||
+                                    "N/A"
+                                  : priceDisplay == "retail_price"
+                                    ? product?.retail_price?.toFixed(2) || "N/A"
+                                    : "N/A"}
+                              </Text>
+                            </View>
+                          )}
                         </View>
 
                         <View style={styles.productBody}>
